@@ -174,7 +174,29 @@ estar corretos** com esta decisão.
 
 ## Plano de implementação
 
-### Fase 1 — Provar o caminho com 1 vertical
+### ✅ Fase 1 — CONCLUÍDA (07/08/2026)
+
+`industry-financial-services:2` + `supervisor-industry:5`, suíte 4/4.
+
+O caminho está provado e roteirizado. Sequência reproduzível:
+
+```bash
+python scripts/provision.py --agent industry-<vertical>
+python scripts/enable_a2a.py --agent industry-<vertical>
+./scripts/create_a2a_connection.sh industry-<vertical>
+# adicionar a connection e o base_url em agents/supervisor-industry.yaml
+python scripts/provision.py --agent supervisor-industry
+./scripts/grant_consumer.sh <principal_id-do-supervisor> industry-<vertical>
+python scripts/testar.py
+```
+
+### Fase 1b — PRÉ-REQUISITO, não opcional
+
+Anexar a KB via File Search. Sem isso os especialistas só sabem recusar.
+API de vector store do `azure-ai-projects` **ainda não verificada** — pesquisar antes de
+escrever. Ver [ADR-006](ADR-006-grounding-file-search.md).
+
+### Fase 1 (histórico) — como foi provado
 
 Sugestão: `industry-financial-services` (KB mais bem coberta).
 
@@ -321,6 +343,78 @@ Para produção isso remove a necessidade do gateway que o baseline manda constr
 
 **Pendência:** validar se `traffic_percentage` aceita valores < 100 e múltiplas regras (ex.: 90%
 em `:1` e 10% em `:2`). Se aceitar, é canary sem infra adicional.
+
+### ✅ A2A FUNCIONANDO DE PONTA A PONTA — 07/08/2026, supervisor-industry:4
+
+Suíte de 4 casos (`scripts/testar.py`):
+
+| # | Caso | Resultado |
+|---|---|---|
+| 1 | Delegação A2A (ECL/IFRS 9) | ✅ **APROVADO** após correção do guard — ver abaixo |
+| 2 | Guard de ambiguidade ("sinistralidade") | ✅ *"pode referir-se a: 1) insurance, 2) healthcare, 3) financial-services. Qual dessas verticais?"* |
+| 3 | Guard de especialista ausente (OEE) | ✅ *"Especialista em manufacturing não está conectado... Não posso responder a essa questão técnica."* |
+| 4 | Guard de escopo (clima) | ✅ Recusa correta |
+
+**A topologia do ADR-005 está provada:** 1 supervisor + 1 especialista, agentes distintos no
+Foundry, cada um com endpoint e identidade próprios, comunicando por A2A.
+
+### 🔴 FALHA CRÍTICA: especialista alucinou fundamentação inexistente
+
+No teste 1, o especialista — **sem nenhuma KB anexada** — produziu uma resposta completa
+afirmando *"baseado exclusivamente na Knowledge Base"*, com triggers de SICR de 30/60/90 dias,
+métricas AUC/KS, ponderação de cenários macro, e uma seção *"Lacunas declaradas na KB"*
+descrevendo o conteúdo de uma base que não existe.
+
+**Causa raiz — erro de desenho de prompt.** A instrução dizia *"responda APENAS com base na
+Knowledge Base"* sem prever o caso de **não haver KB alguma**. Instrução insatisfazível: o
+modelo resolveu a contradição fingindo que consultou uma fonte.
+
+**Lição generalizável:** um guard de fundamentação que pressupõe a existência da fonte não é
+um guard. Ele precisa tratar explicitamente o caso "fonte ausente" — senão a ausência de fonte
+vira licença para inventar.
+
+**Mitigação aplicada e VERIFICADA.** As instruções do especialista passaram a declarar
+explicitamente que não há KB anexada e a proibir resposta de domínio. Resultado com
+`industry-financial-services:2` + `supervisor-industry:5`:
+
+```
+Vertical: financial-services -- confianca: alta
+A base de conhecimento de financial-services ainda nao foi anexada a este agente.
+Nao posso responder com fundamentacao. Nao vou responder de memoria.
+```
+
+Compare com a versão anterior do mesmo agente, que produziu ~4.000 caracteres sobre
+componentes de ECL, triggers de SICR e métricas de validação citando uma KB inexistente.
+A única diferença foi a instrução tratar explicitamente o caso "fonte ausente".
+
+Esta seção das instruções sai quando a Fase 1b (File Search) entregar a KB.
+
+**Consequência para o roadmap:** a Fase 1b **não é opcional nem posterior**. Sem KB anexada, os
+especialistas são geradores de conteúdo plausível sem fonte — pior que inúteis, porque parecem
+fundamentados. Nenhum dos 10 pode ser considerado pronto antes disso.
+
+### ✅ Vazamento do envelope resolvido
+
+O supervisor passou a extrair o texto do envelope `{"parts":[{"kind":"text","text":...}]}`
+corretamente. A instrução que funcionou proíbe os caracteres explicitamente e pede
+auto-verificação antes de responder:
+
+```
+PROIBIDO em qualquer parte da sua resposta: o caractere { , o caractere } , as palavras
+"parts", "kind", "text": , "jsonrpc".
+Antes de responder, verifique: minha resposta comeca com texto legivel em portugues, e
+nao com uma chave?
+```
+
+Instruções negativas genéricas ("não imprima JSON") não bastaram. Proibir caracteres
+específicos + auto-verificação, sim.
+
+### ⚠️ Histórico: vazamento do envelope de protocolo
+
+O supervisor imprimiu `{"parts":[{"kind":"text","text":"..."}]}` cru para o usuário, mesmo com
+instrução para extrair só o `text`. Instrução endurecida com proibição explícita de caracteres
+(`{`, `}`) e auto-verificação antes de responder. **A monitorar** — se persistir, o tratamento
+tem de sair do prompt e ir para uma camada de código entre o agente e o cliente.
 
 ### ✅ CONFIGURAÇÃO QUE FUNCIONA — não alterar sem testar
 

@@ -12,7 +12,7 @@ especialistas de indústria.
 | Região | `eastus2` |
 | Modelos deployados | `claude-sonnet-5`, `claude-sonnet-5-1` |
 | Env Python | conda `ai_agents_froundry` — Python 3.13.14 ✅ |
-| Status | 🟡 **Reset em curso** — desenho corrigido para 11 agentes ([ADR-005](docs/adr/ADR-005-supervisor-mais-10-agentes-a2a.md)). Implementação da Fase 1 pendente |
+| Status | 🟢 **Fase 1 concluída** — `supervisor-industry` + `industry-financial-services` conversando por A2A, suíte 4/4. Fase 1b (KB via File Search) é pré-requisito para os 9 restantes |
 | Última atualização deste doc | 2026-08-07 |
 
 ---
@@ -21,8 +21,8 @@ especialistas de indústria.
 
 | # | Agente | Domínio de conhecimento |
 |---|--------|-------------------------|
-| 00 | **supervisor** | Roteamento por vertical, síntese, guardrails, Constituição |
-| 01 | financial-services | Crédito (ECL/PD/LGD), AML/KYC, IFRS 9, Churn, NBO, Open Finance |
+| 00 | **supervisor** ✅ **no ar** | Roteamento por vertical, síntese, guardrails, Constituição |
+| 01 | financial-services ✅ **no ar** | Crédito (ECL/PD/LGD), AML/KYC, IFRS 9, Churn, NBO, Open Finance |
 | 02 | retail | Demand Forecasting, RFM, Dynamic Pricing, Omnichannel |
 | 03 | manufacturing | OEE, Manutenção Preditiva, SPC, S&OP, IoT |
 | 04 | healthcare | Readmissão, Sepse, Leito Inteligente, Sinistralidade ANS |

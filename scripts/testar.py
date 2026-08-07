@@ -35,15 +35,8 @@ SUITE = [
 ]
 
 
-def perguntar(client, agente: str, texto: str) -> str:
-    r = client.responses.create(
-        input=texto,
-        extra_body={"agent_reference": {"name": agente, "type": "agent_reference"}},
-    )
-    # a saida pode vir em output_text (conveniencia) ou em output[]
-    saida = getattr(r, "output_text", None)
-    if saida:
-        return saida
+def _texto_de(r) -> str:
+    """Extrai o texto da mensagem final, se houver."""
     partes = []
     for item in getattr(r, "output", []) or []:
         if getattr(item, "type", None) == "message":
@@ -51,7 +44,49 @@ def perguntar(client, agente: str, texto: str) -> str:
                 t = getattr(c, "text", None)
                 if t:
                     partes.append(t)
-    return "\n".join(partes) or f"(sem texto) resposta bruta: {r}"
+    return "\n".join(partes)
+
+
+def _diagnostico(r) -> str:
+    """Quando nao ha mensagem final, mostra a estrutura para diagnostico.
+
+    Motivo: um output_text == '(remote tool called)' indica que a tool A2A foi
+    invocada mas o agente nao compos a resposta. Sem ver os itens de output nao
+    da para saber se o run ficou incompleto, se o remoto devolveu vazio, ou se
+    falta um turno.
+    """
+    linhas = [f"status={getattr(r, 'status', '?')}"]
+    inc = getattr(r, "incomplete_details", None)
+    if inc:
+        linhas.append(f"incomplete_details={inc}")
+    err = getattr(r, "error", None)
+    if err:
+        linhas.append(f"error={err}")
+    for i, item in enumerate(getattr(r, "output", []) or []):
+        t = getattr(item, "type", "?")
+        extra = ""
+        if t == "function_call":
+            extra = f" name={getattr(item, 'name', '?')} args={str(getattr(item, 'arguments', ''))[:200]}"
+        elif t == "function_call_output":
+            extra = f" output={str(getattr(item, 'output', ''))[:600]}"
+        elif t in ("mcp_call", "a2a_call", "tool_call"):
+            extra = f" {str(item.__dict__ if hasattr(item, '__dict__') else item)[:600]}"
+        linhas.append(f"  output[{i}] type={t}{extra}")
+    return "SEM MENSAGEM FINAL. Estrutura:\n" + "\n".join(linhas)
+
+
+def perguntar(client, agente: str, texto: str) -> str:
+    r = client.responses.create(
+        input=texto,
+        extra_body={"agent_reference": {"name": agente, "type": "agent_reference"}},
+    )
+    msg = _texto_de(r)
+    if msg:
+        return msg
+    # output_text pode vir como placeholder (ex.: '(remote tool called)')
+    ot = (getattr(r, "output_text", None) or "").strip()
+    diag = _diagnostico(r)
+    return f"{diag}\n\noutput_text={ot!r}" if ot else diag
 
 
 def main() -> None:
