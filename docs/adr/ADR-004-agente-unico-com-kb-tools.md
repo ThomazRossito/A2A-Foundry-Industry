@@ -192,10 +192,61 @@ guards de ambiguidade e as regras L1–L4 deste `main.py` não mudam.
 ⚠️ Ao migrar, aceitar formalmente que o **A2A está em preview** (sem SLA, só texto, sem
 streaming, v1.0 só JSONRPC) — ver [ADR-001](ADR-001-orquestracao.md) §Opções avaliadas.
 
+## 🔴 Achado pós-deploy: o Toolkit reescreve o `azure.yaml`
+
+O deploy pelo Foundry Toolkit **modificou o `azure.yaml` versionado**, sem prompt:
+
+```diff
+       runtime: python_3_13
+       entryPoint: main.py
++      dependencyResolution: remote_build
+     container:
+       resources:
+-        cpu: '0.5'
+-        memory: 1Gi
++        cpu: '1.0'
++        memory: 2.0Gi
+```
+
+**Hipótese da causa** (⚠️ NÃO CONFIRMADO na doc): o modo `remote_build` exige o tier de 1 vCPU
+ou maior. A doc de hosted agents afirma que o orçamento de disco é *"up to 20 GiB at 1 vCPU or
+larger"*, o que é consistente, mas não estabelece a obrigatoriedade.
+
+### Impacto de custo
+
+Dobro de compute por sessão. E o efeito é multiplicativo porque a escala é por sessão:
+*"the cpu and memory values you set on an agent version describe a single session, not the
+aggregate footprint of the agent."*
+
+### Impacto de processo — o mais grave
+
+**O `azure.yaml` deixa de ser fonte de verdade** se a ferramenta de deploy o edita. O commit
+passa a registrar o que o Toolkit decidiu, não o que o time especificou. Isso contraria a
+recomendação oficial de *"Define agents as code. Store agent definitions, connections, system
+prompts, and parameters in source control."*
+
+### Mitigações
+
+| # | Ação |
+|---|---|
+| 1 | `git diff --exit-code azure.yaml` **obrigatório** após todo deploy no CI; falhar o pipeline em drift |
+| 2 | Testar se `cpu: '0.5'` sobrevive com `dependencyResolution` explícito no arquivo |
+| 3 | Avaliar o caminho `azd deploy` (CLI) para verificar se apresenta o mesmo comportamento |
+| 4 | Revisar o dimensionamento contra carga real antes de prod — 1 vCPU pode ser correto, mas deve ser **decisão**, não default silencioso |
+
+### Artefato adicional
+
+O deploy criou `.foundry/.deployment.json` com as opções de deploy e o `projectId`. Sem
+segredos; mantido versionado por ajudar a reprodutibilidade.
+
+---
+
 ## Pendências
 
 - [ ] Script de sincronização `kb/` → `src/supervisor/kb/industry/`
 - [ ] Verificar o parâmetro de `max_output_tokens` no Agent Framework Python
 - [ ] Atualizar 04 §1.3 e 06 §2 para refletir 1 agente em vez de 11
-- [ ] Conectar Application Insights (tracing é *off by default*)
+- [x] Application Insights criado (`ai-multi-agents-appinsights`, workspace-based) e apontado para workspace próprio (`ai-multi-agents-law`, retenção 30d)
+- [ ] **Conectar** o App Insights ao projeto no portal Foundry — sem isso não há coleta
+- [ ] Diff obrigatório de `azure.yaml` no CI (ver achado pós-deploy acima)
 - [ ] Atribuir `gr-industry-regulado` explicitamente ao `supervisor-industry`
