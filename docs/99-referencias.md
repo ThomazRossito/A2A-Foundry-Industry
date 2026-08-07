@@ -150,6 +150,34 @@ nesse ponto — ver [ADR-001](adr/ADR-001-orquestracao.md).
 
 ---
 
+## ⚠️ Causa raiz de metade das divergências: o SDK está à frente da doc
+
+Descoberto na auditoria de 07/08/2026:
+
+| Fato | Evidência |
+|---|---|
+| O learn documenta `azure-ai-projects` **2.0.0b4** | README do pacote, `ms.date 2026-02-24`, `pip install --pre azure-ai-projects` |
+| Nós usamos **2.3.0** | `pip show azure-ai-projects` |
+| `agents.update_details` **não existe** na referência Python | `AgentsOperations` lista só `create_version`, `create_version_from_manifest`, `delete`, `delete_version`, `get`, `get_version`, `list`, `list_versions` |
+| Mas `update_details` **funciona** em 2.3.0 | Habilitou o A2A de entrada com sucesso |
+
+**Consequência prática:** para este SDK, **introspecção (`dir()`, `inspect.signature`,
+`_attribute_map`) é fonte mais confiável que a referência de API do learn.** Os scripts
+`introspect_sdk.py` e `introspect_a2a.py` existem por isso e devem ser a primeira parada ao
+investigar qualquer assinatura.
+
+⚠️ **Achado adicional:** a referência REST do data plane **saiu do learn.microsoft.com**.
+`/rest/api/aifoundry/project/agents` responde `302` para `https://ai.azure.com/api-reference`.
+Schemas autoritativos (incluindo eventuais `maxLength`) agora vivem fora do learn.
+
+⚠️ **What's new não cobre julho nem agosto de 2026.** `whats-new-foundry` para em junho/2026
+(`ms.date 2026-07-08`), e `azure/search/whats-new` idem. Se houve anúncios nesses dois meses,
+não estão em nenhuma página de what's new. Como proxy, use a data de atualização das páginas:
+`what-is-foundry-iq` → 2026-08-01, `tools/agent-to-agent` → 2026-08-05,
+`limits-quotas-regions` → 2026-08-04, `tools/file-search` → 2026-07-31.
+
+---
+
 ## Contradições e lacunas na documentação oficial
 
 Registradas para não serem redescobertas:
@@ -170,7 +198,7 @@ Registradas para não serem redescobertas:
 | 12 | 🔴 **Doc contradiz o SDK no `authType`**: `enable-agent-to-agent-endpoint` usa `AgenticIdentity`; o correto (verificado por `GET` na connection criada) é **`AgenticIdentityToken`**, como consta em `/agents/how-to/tools/agent-to-agent` |
 | 13 | O exemplo de `agent_card` da doc **omite dois campos obrigatórios** do SDK: `AgentCard.version` e `AgentCardSkill.id`. O payload documentado falharia mesmo se o path ARM existisse |
 | 13b | 🔴 **Doc quebra o runtime**: `/agents/how-to/enable-agent-to-agent-endpoint` manda gravar `metadata.AgentCardPath: "/agentCard/v1.0"` na connection. Isso passa na criação e **falha na primeira chamada A2A**: `400 tool_user_error: "Agent card path is invalid for a Foundry agent. Either fix the agent card path or remove it to use the default agent card path."` Para alvo Foundry, **não envie `AgentCardPath`** |
-| 13c | 🔴 **Requisito não documentado**: habilitar A2A exige **os dois** protocolos, `a2a` **e** `responses`. Com só `a2a`, o endpoint do agent card responde `400 endpoint-protocol-not-enabled`: *"Missing protocols: [responses]. Both 'a2a' and 'responses' protocols must be enabled on the endpoint."* A doc não menciona isso em nenhum lugar |
+| 13c | ⚠️ **CORRIGIDO na auditoria de 07/08** — a doc **menciona** o requisito: *"Incoming A2A requires the responses protocol."* O erro real é outro: ela afirma que *"Prompt agents support the responses protocol by default. All prompt agents can be exposed as A2A endpoints"*, mas o nosso prompt agent **não** tinha `responses` habilitado, e o card respondia `400 endpoint-protocol-not-enabled: "Missing protocols: [responses]"` até habilitarmos explicitamente via `ProtocolConfiguration(responses=ResponsesProtocolConfiguration())`. **O "by default" da doc é falso** |
 | 13d | O caminho `/.well-known/agent-card.json` (padrão A2A genérico, e o default documentado do `A2APreviewTool`) responde **404** em agente Foundry. Os caminhos válidos são `/agentCard/v1.0` e `/agentCard/v0.3` |
 | 14 | `A2APreviewTool` tem o campo `send_credentials_for_agent_card`, **ausente da referência de API** |
 | 15 | `delete(agent_name, force=True)` resolve `409 Agent has active sessions`. O kwarg existe no SDK mas não estava na doc que consultei — descoberto pela mensagem de erro do serviço |

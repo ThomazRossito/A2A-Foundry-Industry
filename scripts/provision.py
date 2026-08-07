@@ -36,7 +36,7 @@ from pathlib import Path
 
 import yaml
 from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import A2APreviewTool, PromptAgentDefinition
+from azure.ai.projects.models import A2APreviewTool, FileSearchTool, PromptAgentDefinition
 from azure.identity import DefaultAzureCredential
 
 # Limite documentado de `instructions` na referencia REST de prompt agent.
@@ -126,12 +126,17 @@ def montar_tools(spec: dict, project: AIProjectClient, dry_run: bool) -> list:
         print(f"   A2APreviewTool <- '{conn_name}' "
               f"(card_path={card_path!r}, send_credentials={enviar_cred})")
 
-    if spec.get("knowledge_files"):
+    # File Search: a KB da vertical. O vector_store_id e gravado no yaml pelo
+    # scripts/attach_kb.py. "You can attach at most one vector store to an agent."
+    vs_id = spec.get("vector_store_id")
+    if vs_id:
+        tools.append(FileSearchTool(vector_store_ids=[vs_id]))
+        print(f"   FileSearchTool <- vector_store {vs_id}")
+    elif spec.get("knowledge_files"):
         print(
-            "   AVISO: 'knowledge_files' declarado mas NAO implementado.\n"
-            "          A API de vector store / File Search do azure-ai-projects nao foi\n"
-            "          verificada na doc — nao vou escrever assinatura no escuro.\n"
-            "          Fase 1b. Ver ADR-006 e scripts/README.md."
+            "   AVISO: 'knowledge_files' declarado mas sem 'vector_store_id'.\n"
+            "          A KB NAO esta anexada — o agente vai recusar perguntas de dominio.\n"
+            "          Rode: python scripts/attach_kb.py --agent <nome>"
         )
 
     return tools
@@ -147,10 +152,21 @@ def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool) -> No
         print(f"   [dry-run] model={spec['model']}, tools={len(tools)}")
         return
 
+    extras = {}
+    if tools:
+        extras["tools"] = tools
+    # tool_choice='required' forca o uso da ferramenta. A doc de file-search indica
+    # isso como solucao para "No citations in response": "Use tool_choice='required'
+    # to force file search." Para um especialista que nunca deve responder de memoria,
+    # e o comportamento correto.
+    if spec.get("tool_choice"):
+        extras["tool_choice"] = spec["tool_choice"]
+        print(f"   tool_choice={spec['tool_choice']!r}")
+
     definicao = PromptAgentDefinition(
         model=spec["model"],
         instructions=instrucoes,
-        **({"tools": tools} if tools else {}),
+        **extras,
     )
 
     agente = project.agents.create_version(

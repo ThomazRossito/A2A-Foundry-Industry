@@ -10,8 +10,31 @@
 
 ## O bloqueio
 
-A referência REST de prompt agent define `instructions` com **`maxLength: 4096`** e
-`Required: Yes`.
+⚠️ **CORREÇÃO DE AUDITORIA (07/08/2026).** A premissa original deste ADR era que `instructions`
+tem `maxLength: 4096`. **Isso NÃO está confirmado:**
+
+- A referência Python (`azure.ai.projects.models.promptagentdefinition`) descreve `instructions`
+  como **opcional**, tipo `str`, *"A system (or developer) message inserted into the model's
+  context"* — **sem menção a limite**.
+- A referência REST **saiu do learn.microsoft.com**: `/rest/api/aifoundry/project/agents`
+  responde `302` para `https://ai.azure.com/api-reference/agents`. O schema autoritativo, se
+  declara `maxLength`, está fora do learn.
+- Busca por "4096" + instructions + prompt agent no learn: nenhum resultado.
+
+**A decisão do ADR permanece**, por razões independentes do limite:
+
+| Razão | Peso |
+|---|---|
+| KB de 8–13 KB em `instructions` seria enviada em **toda** invocação | Custo por chamada, sem benefício |
+| Instrução não é retrieval — o modelo não "consulta", ele carrega tudo | Nenhum controle de relevância |
+| File Search é **GA** e o sample oficial usa literalmente `gpt-5-mini` + arquivo `.md` | Caminho suportado |
+| Manutenção da KB desacoplada do redeploy do agente | Operacional |
+
+Ou seja: mesmo que caibam 12.990 caracteres em `instructions`, **não é onde a KB deve ficar**.
+
+O limite de 4.096 continua **aplicado como guarda-corpo** em `scripts/provision.py` — se a
+plataforma aceitar mais, o pior que acontece é o script recusar antes da hora. Preferível ao
+inverso.
 
 Tamanho real das KBs:
 
@@ -80,8 +103,53 @@ existe justamente para detectar resposta não ancorada na fonte recuperada.
 | Necessidade de citação com trecho e score | File Search não expõe isso do mesmo jeito |
 | Documentos que não são markdown versionado (normas, PDFs) | Indexação dedicada |
 
+## ✅ VALIDADO EM EXECUÇÃO — 07/08/2026
+
+`industry-financial-services:3` com `FileSearchTool` + `tool_choice: required`.
+
+```
+vector store: vs_dp8btT2NeHxOoojfYLfLTyOb
+upload:       financial-services.md (8.443 bytes) -> status=completed
+file_counts:  completed=1, failed=0, total=1
+```
+
+Resultado do teste de fundamentação (pergunta: *"preciso montar o modelo de ECL para IFRS 9"*):
+
+| Critério | Resultado |
+|---|---|
+| Números exatos da KB | ✅ Coverage Ratio *"Mínimo regulatório: 100%"*; Inadimplência 90+ *"> 5%"* |
+| Colunas reais do schema | ✅ `stage_ifrs9`, `ecl_amount`, `days_past_due`, `cpf_hash`, `name_masked` |
+| Anti-padrões com código | ✅ FS01, FS03, FS06 |
+| **Lacuna declarada** | ✅ *"NÃO fornece fórmulas nem definição detalhada de PD, LGD ou EAD"* |
+| **Ausência de alucinação** | ✅ Nenhum `PD × LGD × EAD`, nenhum trigger SICR 30/60/90, nenhum AUC/KS |
+
+**Prova de retrieval genuíno:** a resposta citou `governance-auditor` e `data-quality-steward`,
+que existem apenas no **front-matter YAML** do arquivo da KB, não no corpo. O agente leu o
+arquivo, não parafraseou conhecimento paramétrico.
+
+### A combinação que produziu esse comportamento
+
+Três elementos, e nenhum sozinho basta:
+
+| Elemento | Papel |
+|---|---|
+| `FileSearchTool(vector_store_ids=[...])` | Dá a fonte |
+| `tool_choice: required` | Força o uso da fonte. Alavanca documentada: *"Use `tool_choice=\"required\"` to force file search."* |
+| Instrução com **tratamento da fonte ausente** | *"Se nao encontrar a resposta na base de conhecimento, voce DEVE dizer que nao encontrou"* + exemplo concreto do que não fazer |
+
+Comparativo do mesmo agente, mesma pergunta, três versões:
+
+| Versão | Config | Resultado |
+|---|---|---|
+| `:1` | Sem KB, instrução "responda apenas com base na KB" | 🔴 ~4.000 chars inventados citando KB inexistente |
+| `:2` | Sem KB, instrução declarando ausência de KB | ✅ Recusou corretamente |
+| `:3` | KB via File Search + `tool_choice: required` | ✅ Fundamentado, com lacuna declarada |
+
+**Lição:** um guard de fundamentação precisa de três coisas — fonte, obrigação de usá-la, e
+tratamento explícito do caso em que ela não responde. Faltando qualquer uma, o modelo preenche.
+
 ## Pendências
 
-- [ ] Validar empiricamente o limite de 4.096 no primeiro `create_version`
+- [x] Limite de 4.096 — premissa corrigida (ver §O bloqueio); guarda-corpo mantido no script
 - [ ] Condensar `index.md` (4.440 chars) para as instruções do supervisor, ou mandar para File Search
 - [ ] Baseline de Groundedness antes do primeiro release
