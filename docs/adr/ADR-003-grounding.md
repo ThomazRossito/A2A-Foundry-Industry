@@ -2,7 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Status | 🟡 **Proposta** — pendente de decisão formal |
+| Status | ⚠️ **Superada por [ADR-004](ADR-004-agente-unico-com-kb-tools.md)** |
+| Motivo | A Fase 1 propunha KB **inline nas instruções**. Com o desenho de agente único isso exigiria carregar as 10 KBs (~27k tokens) por invocação. ADR-004 adota KB como **retorno de ferramenta** (~4k tokens, 1 vertical por vez) |
+| Ainda válido | O levantamento de tamanho dos arquivos, as restrições de File Search sob VNet e os gatilhos de migração para Azure AI Search |
 | Data | 2026-08-07 |
 | Decisores | Thomaz Rossito |
 

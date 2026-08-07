@@ -12,7 +12,7 @@ especialistas de indústria.
 | Região | `eastus2` |
 | Modelos deployados | `claude-sonnet-5`, `claude-sonnet-5-1` |
 | Env Python | conda `ai_agents_froundry` — Python 3.13.14 ✅ |
-| Status | 🟢 Ambiente validado (RBAC ok, Python 3.13.14, modelo deployado) — agente ainda não criado |
+| Status | 🟢 **`supervisor-industry` v1 no ar** (deploy 07/08/2026 19:21, eastus2). 5/5 testes de roteamento |
 | Última atualização deste doc | 2026-08-07 |
 
 ---
@@ -47,7 +47,8 @@ Contrato de cada agente em [`docs/agents/`](docs/agents/).
 | [04-governanca-seguranca.md](docs/04-governanca-seguranca.md) | Identidade, guardrails, PII/LGPD, isolamento de rede |
 | [05-observabilidade-avaliacao.md](docs/05-observabilidade-avaliacao.md) | Tracing, monitoring, avaliadores, critérios de aceite |
 | [06-guardrails.md](docs/06-guardrails.md) | Os 2 guardrails, controles por risco, quando configurar |
-| [adr/](docs/adr/) | Decisões de arquitetura com justificativa e fontes |
+| [adr/ADR-004](docs/adr/ADR-004-agente-unico-com-kb-tools.md) | **Desenho implementado** — agente único com ferramentas de KB |
+| [adr/](docs/adr/) | Demais decisões de arquitetura, com o que foi superado marcado |
 | [99-referencias.md](docs/99-referencias.md) | Todas as fontes oficiais consultadas, com data |
 
 ---
@@ -63,6 +64,7 @@ Leia [02-pre-requisitos.md](docs/02-pre-requisitos.md) na íntegra. Resumo:
 3. **VNet não é retrofitável** — se o isolamento de rede for requisito, o Foundry account
    precisa ser recriado.
 4. **Connected Agents está deprecado** — não é o caminho. Ver [ADR-001](docs/adr/ADR-001-orquestracao.md).
+5. **O desenho atual é 1 agente com 10 KBs, não 11 agentes** — logo, sem RBAC nem guardrail por vertical. Ver [ADR-004](docs/adr/ADR-004-agente-unico-com-kb-tools.md) §Consequências.
 
 ---
 

@@ -26,6 +26,7 @@ services:
     codeConfiguration:
       runtime: python_3_13
       entryPoint: main.py
+      dependencyResolution: remote_build
     uses:
       - ai-project
     kind: hosted
@@ -42,8 +43,8 @@ services:
         value: gpt-5-mini
     container:
       resources:
-        cpu: '0.5'
-        memory: 1Gi
+        cpu: '1.0'
+        memory: 2.0Gi
 
 infra:
   provider: microsoft.foundry

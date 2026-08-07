@@ -2,7 +2,9 @@
 
 | Campo | Valor |
 |---|---|
-| Status | ✅ Aceita |
+| Status | ⚠️ **Parcialmente superada por [ADR-004](ADR-004-agente-unico-com-kb-tools.md)** |
+| Ainda válido | A exclusão de Connected Agents, Workflows visuais, A2A-como-principal e Logic Apps. As citações e o levantamento de status seguem corretos |
+| Superado | A §Decisão (padrão `Handoff` com 10 agentes especialistas aninhados) — reprovada por evidência de execução do `prj-globo` |
 | Data | 2026-08-07 |
 | Decisores | Thomaz Rossito |
 | Substitui | Proposta inicial de "Foundry Agent Service + Connected Agents" |
