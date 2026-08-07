@@ -48,6 +48,47 @@ Registrar como risco aceito.
 
 ---
 
+## 1.5 Recursos provisionados (07/08/2026)
+
+| Recurso | Nome | RG | Observação |
+|---|---|---|---|
+| Application Insights | `ai-multi-agents-appinsights` | `rg-poc-mock` | `ingestionMode: LogAnalytics` (workspace-based) |
+| Log Analytics workspace | `ai-multi-agents-law` | `rg-poc-mock` | Workspace **próprio**, escolhido no lugar do gerenciado |
+
+### Por que não usar o workspace gerenciado
+
+O `az monitor app-insights component create` provisiona automaticamente um workspace em um
+resource group auto-gerado (`ai_<nome>_<guid>_managed`). Ele funciona, mas nesse RG não se
+governa retenção nem RBAC com facilidade.
+
+Como os traces gravam **prompts e respostas**, o workspace é um repositório potencial de dados
+pessoais, e a responsabilidade é declaradamente do cliente: *"Configuring appropriate access
+controls and data retention policies."* Isso exige um workspace sob controle do time.
+
+Comando que fez a troca (o parâmetro `--workspace` **existe** no `update`, validado em execução):
+
+```bash
+az monitor app-insights component update \
+  --app ai-multi-agents-appinsights \
+  --resource-group rg-poc-mock \
+  --workspace "<resource-id-do-ai-multi-agents-law>"
+```
+
+Retenção definida explicitamente em **30 dias** (valor de dev; o definitivo é decisão do DPO):
+
+```bash
+az monitor log-analytics workspace update \
+  --workspace-name ai-multi-agents-law --resource-group rg-poc-mock --retention-time 30
+```
+
+⚠️ O workspace gerenciado original pode continuar existindo, órfão, no RG auto-gerado.
+Verificar e remover se não estiver em uso.
+
+⚠️ **Pendência:** conectar o App Insights ao projeto no portal Foundry. Sem essa conexão não há
+coleta — *"Tracing is off by default."*
+
+---
+
 ## 2. Agent Monitoring Dashboard (preview)
 
 Métricas: token usage, latency, run success rate, evaluation metrics, red teaming results.
