@@ -201,10 +201,154 @@ Script idempotente. Nada manual, porque 10 × 5 passos manuais é onde erro entr
 
 ---
 
+## Achados de execução — 07/08/2026
+
+Validado contra o ambiente real, não contra a doc.
+
+### ✅ `authType` correto: `AgenticIdentityToken`
+
+A connection foi criada e um `GET` nela devolveu:
+
+```json
+{ "authType": "AgenticIdentityToken", "category": "RemoteA2A",
+  "audience": "https://ai.azure.com",
+  "metadata": { "AgentCardPath": "/agentCard/v1.0" } }
+```
+
+**A ambiguidade da doc está resolvida.** A página `/agents/how-to/tools/agent-to-agent` está
+correta (`AgenticIdentityToken`); a página `/agents/how-to/enable-agent-to-agent-endpoint`
+está **errada** ao usar `AgenticIdentity` para o cenário Foundry→Foundry.
+
+### 🔴 Agentes NÃO são recursos ARM — a doc do inbound A2A aponta para o plano errado
+
+A doc manda habilitar o A2A de entrada com um `PATCH` em
+`management.azure.com/.../projects/{p}/agents/{name}?api-version=2025-04-01-preview`.
+
+**Isso não funciona.** Resultado real:
+
+```
+400  {"error":{"code":"UnsupportedAction",
+      "message":"The requested action 'agents/industry-financial-services' is not supported"}}
+```
+
+Causa raiz, comprovada:
+
+```bash
+az provider show --namespace Microsoft.CognitiveServices \
+  --query "resourceTypes[?contains(resourceType,'agents')]" -o json
+# => []
+```
+
+**Nenhum resource type com `agents` existe no provider.** O `api-version` está correto — o mesmo
+`2025-04-01-preview` funcionou para criar a connection. O que não existe é o recurso `agents`
+no ARM. Um `GET` no mesmo path dá o mesmo erro, confirmando que não é específico do PATCH.
+
+Consequência: o inbound A2A tem de ser configurado pelo **data plane**
+(`{project_endpoint}/agents/...?api-version=v1`) ou por alguma operação do SDK. A doc não
+documenta isso — a aba "Python SDK" daquela seção está vazia.
+
+**Em investigação:** `scripts/introspect_sdk.py` interroga o `azure-ai-projects` instalado para
+localizar a operação correta. O SDK é fonte de verdade mais confiável que a doc neste ponto.
+
+⚠️ Enquanto isso não se resolver, o A2A de **saída** (a tool no supervisor) está configurado, mas
+o especialista **não expõe** endpoint A2A — a cadeia está incompleta.
+
+### ✅ A operação correta de inbound A2A: `update_details` (data plane)
+
+Descoberta por introspecção do SDK, não pela doc:
+
+```python
+project.agents.update_details(
+    agent_name,
+    agent_card=AgentCard(version=..., description=..., skills=[AgentCardSkill(id=..., name=..., ...)]),
+    agent_endpoint=AgentEndpointConfig(
+        protocol_configuration=ProtocolConfiguration(a2a=A2AProtocolConfiguration()),
+        authorization_schemes=[EntraAuthorizationScheme()],
+    ),
+)
+```
+
+Implementado em `scripts/enable_a2a.py`. Resultado confirmado em `industry-financial-services`:
+
+```json
+"agent_endpoint": {
+  "protocols": ["a2a"],
+  "protocol_configuration": {"a2a": {}},
+  "authorization_schemes": [{"type": "Entra"}]
+}
+```
+
+**Campos obrigatórios que o exemplo da doc omite:** `AgentCard.version` e `AgentCardSkill.id`.
+O payload documentado falharia mesmo se o path ARM existisse.
+
+⚠️ Formato de `AgentCard.version` **não documentado** — usamos `1.0.0` e a API aceitou.
+
+### ✅ Identidade dedicada existe ANTES de publicar
+
+A resposta de `update_details` trouxe:
+
+```json
+"instance_identity": { "principal_id": "0202faf4-...", "client_id": "0202faf4-..." },
+"blueprint": { "principal_id": "90d514d9-...", "client_id": "762d98af-..." },
+"blueprint_reference": { "type": "ManagedAgentIdentityBlueprint",
+                         "blueprint_id": "industry-financial-services-28b9e" }
+```
+
+⚠️ Isso **tensiona** o que a doc afirma: *"All unpublished or in-development agents within the
+same project share a common identity"*. Há `principal_id` e blueprint **por agente**, sem
+publicação. Consequência prática: o `instance_identity.principal_id` é o assignee do RBAC.
+
+**NÃO CONFIRMADO:** se o `instance_identity` sobrevive à publicação ou é substituído. A doc diz
+que publicar gera um `agentIdentityId` novo. Verificar antes de prod — impacta se o RBAC precisa
+ser refeito.
+
+### ✅ Canary nativo existe — e a doc nega
+
+Default aplicado automaticamente ao habilitar o endpoint:
+
+```json
+"version_selector": { "version_selection_rules": [
+  { "type": "FixedRatio", "agent_version": "@latest", "traffic_percentage": 100 } ] }
+```
+
+O baseline oficial afirma: *"Foundry doesn't provide built-in support for blue-green or canary
+deployments of agents. If you require these deployment patterns or controlled migration of users
+between agent versions, implement a routing layer, like an API gateway or custom router, in front
+of the agent API."*
+
+Mas `FixedRatio` + `traffic_percentage` + `agent_version` **é** roteamento por versão nativo.
+Para produção isso remove a necessidade do gateway que o baseline manda construir.
+
+**Pendência:** validar se `traffic_percentage` aceita valores < 100 e múltiplas regras (ex.: 90%
+em `:1` e 10% em `:2`). Se aceitar, é canary sem infra adicional.
+
+### ⚠️ Delete de agente com sessões ativas
+
+```
+409 conflict: Agent has active sessions. Please wait for sessions to go idle and retry,
+              or use force=true to cascade-delete all sessions.
+```
+
+O próprio serviço indica a solução: `force=true`. Relevante para o CI, que vai recriar agentes.
+
+### ⚠️ `kind` é imutável entre versões
+
+```
+400 bad_request: Agent kind mismatch for 'supervisor-industry'. Existing: hosted, New: prompt.
+```
+
+Não se converte um hosted agent em prompt agent reusando o nome. É preciso deletar antes.
+Registrar como restrição de operação: **mudança de `kind` = delete + recreate**, não versionamento.
+
+---
+
 ## Pendências
 
-- [ ] Confirmar o nome exato do parâmetro de `audience` na connection A2A
+- [x] `audience` = `https://ai.azure.com` e `authType` = `AgenticIdentityToken` — confirmados em execução
 - [ ] Confirmar se há limite de connections A2A por agente (não documentado)
 - [ ] Definir a versão A2A a fixar (v1.0 JSONRPC vs v0.3) e o header/query correspondente
+- [x] ✅ Operação de inbound A2A descoberta e funcionando: `update_details` (data plane)
+- [ ] Validar se `version_selector.traffic_percentage` aceita < 100 (canary nativo)
+- [ ] Confirmar se `instance_identity` muda ao publicar o agente
 - [ ] Extrair palavras-chave de roteamento de `energy` e `telecom` (ausentes no `index.md`)
 - [ ] Decidir segregação por projeto: 1 projeto para os 11, ou 3 por sensibilidade ([04](../04-governanca-seguranca.md) §1.3)
