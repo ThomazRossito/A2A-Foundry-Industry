@@ -1,0 +1,8 @@
+agent-framework-foundry
+agent-framework-foundry-hosting>=1.0.0a260630
+
+# debugpy enables local debugging of this agent with the Foundry Toolkit VS Code extension.
+debugpy
+
+# httpx: usado pelas funcoes-ferramenta para consultar o mock (HTTP).
+httpx

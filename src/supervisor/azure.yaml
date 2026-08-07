@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+requiredVersions:
+  extensions:
+    azure.ai.agents: '>=1.0.0-beta.4'
+name: agent-framework-workflows-responses
+services:
+  ai-project:
+    host: azure.ai.project
+    # Modelo claude-sonnet-4-6 ja deployado manualmente no prj-globo.
+    # Sem provisionamento de modelo via azd (evita tentar criar gpt-5.4-mini, sem cota).
+  agent-framework-workflows-responses:
+    host: azure.ai.agent
+    metadata:
+      tags:
+        - Agent Framework
+        - AI Agent Hosting
+        - Azure AI AgentServer
+        - Responses Protocol
+        - Streaming
+    project: src/agent-framework-workflows-responses
+    language: python
+    codeConfiguration:
+      runtime: python_3_13
+      entryPoint: main.py
+    uses:
+      - ai-project
+    kind: hosted
+    name: agent-framework-workflows-responses
+    description: An Agent Framework workflow hosted by Foundry.
+    protocols:
+      - protocol: responses
+        version: 2.0.0
+    environmentVariables:
+      - name: AZURE_AI_MODEL_DEPLOYMENT_NAME
+        value: claude-sonnet-4-6
+      - name: MOCK_BASE_URL
+        value: https://mock-hcm-poc-fjaefah2eegmf8c3.eastus2-01.azurewebsites.net/api
+    container:
+      resources:
+        cpu: '0.5'
+        memory: 1Gi
+infra:
+  provider: microsoft.foundry
