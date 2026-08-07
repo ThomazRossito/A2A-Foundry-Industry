@@ -115,16 +115,25 @@ def montar_tools(spec: dict, project: AIProjectClient, dry_run: bool) -> list:
             kwargs["agent_card_path"] = card_path
         if enviar_cred is not None:
             kwargs["send_credentials_for_agent_card"] = enviar_cred
-        # base_url: a doc .NET so seta quando a connection NAO e RemoteA2A
-        #   if (!string.Equals(a2aConnection.Type.ToString(), "RemoteA2A")) { ... }
-        # mas o exemplo JSON da doc mostra base_url E project_connection_id juntos.
-        # Controlado por 'a2a_base_url' no yaml para permitir o experimento.
-        base_url = spec.get("a2a_base_url")
-        if base_url:
-            kwargs["base_url"] = base_url
+
+        # base_url e OBRIGATORIO aqui, apesar de a doc .NET sugerir omiti-lo para
+        # connections RemoteA2A. Sem ele a chamada falha com "Agent card path is
+        # invalid for a Foundry agent". Ver ADR-005 §Configuracao que funciona.
+        #
+        # Com N especialistas, cada tool precisa do SEU base_url — nao da para usar
+        # um valor unico do yaml. Derivamos do 'target' da propria connection, que e
+        # a fonte correta e evita ter que repetir a URL no yaml.
+        base_url = getattr(conn, "target", None) or spec.get("a2a_base_url")
+        if not base_url:
+            sys.exit(
+                f"ERRO: nao foi possivel determinar base_url para '{conn_name}'.\n"
+                f"A connection nao expoe 'target' e o yaml nao define 'a2a_base_url'.\n"
+                f"Verifique com: az rest --method GET --url '<arm-id-da-connection>?api-version=2025-04-01-preview'"
+            )
+        kwargs["base_url"] = base_url
         tools.append(A2APreviewTool(**kwargs))
-        print(f"   A2APreviewTool <- '{conn_name}' "
-              f"(card_path={card_path!r}, send_credentials={enviar_cred})")
+        print(f"   A2APreviewTool <- '{conn_name}'")
+        print(f"      base_url={base_url}")
 
     # File Search: a KB da vertical. O vector_store_id e gravado no yaml pelo
     # scripts/attach_kb.py. "You can attach at most one vector store to an agent."

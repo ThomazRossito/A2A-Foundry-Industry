@@ -464,6 +464,25 @@ Sem `base_url`, a chamada falha com "Agent card path is invalid for a Foundry ag
 **RBAC:** `Foundry Agent Consumer` (`eed3b665-ab3a-47b6-8f48-c9382fb1dad6`) no escopo
 `.../agents/<especialista>`, para o `instance_identity.principal_id` do supervisor.
 
+### ⚠️ Propagação de connection A2A — não é imediata
+
+Ao adicionar um vertical novo, a connection é criada com sucesso (PUT devolve o ARM id, `GET`
+confirma o conteúdo) mas o runtime do agente ainda responde:
+
+```
+400 tool_user_error: "Connection '/subscriptions/.../connections/conn-a2a-industry-telecom' not found"
+```
+
+**Não documentado.** A doc menciona ~10 minutos para propagação de *role assignment*, nada sobre
+connections. Observado: segundos não bastam.
+
+**Mitigação:** `scripts/provision_all.sh` aguarda 90s (`ESPERA_PROPAGACAO`) antes de religar o
+supervisor. Se ainda falhar, esperar mais e rodar apenas
+`python scripts/provision.py --agent supervisor-industry` — não é preciso refazer o vertical.
+
+Isso também explica, em retrospecto, parte do **não determinismo do card fetch** relatado abaixo:
+a connection tinha sido recriada minutos antes daquela suíte.
+
 ### 🔴 Comportamento não determinístico do card fetch — para ticket de suporte
 
 Com a configuração acima **inalterada**, na mesma execução da suíte:

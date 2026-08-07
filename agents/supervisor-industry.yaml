@@ -10,6 +10,7 @@ guardrail: gr-industry-regulado
 # Fase 1: apenas financial-services. As outras 9 entram na Fase 2.
 a2a_connections:
   - conn-a2a-industry-financial-services
+  - conn-a2a-industry-telecom
 # Caminho do agent card. SEM barra inicial — com barra o servico responde
 # "Agent card path is invalid for a Foundry agent". O default documentado
 # (/.well-known/agent-card.json) responde 404 em agente Foundry.
@@ -86,4 +87,3 @@ instructions: |
   Comece com uma linha: "Vertical: <nome> -- confianca: alta|media|baixa".
   Depois a resposta do especialista. Portugues, objetivo.
 
-a2a_base_url: https://ai-multi-agents-resource.services.ai.azure.com/api/projects/ai-multi-agents/agents/industry-financial-services/endpoint/protocols/a2a
