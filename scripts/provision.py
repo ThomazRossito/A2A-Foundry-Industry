@@ -82,9 +82,26 @@ def montar_tools(spec: dict, project: AIProjectClient, dry_run: bool) -> list:
     """Monta as tools. Hoje so A2A — File Search entra na Fase 1b (ver ADR-006)."""
     tools: list = []
 
+    # Config do A2APreviewTool. Dois campos que a doc oficial NAO explica:
+    #
+    #  agent_card_path
+    #    O default documentado e '/.well-known/agent-card.json' — que responde
+    #    404 em agente Foundry (verificado). Os caminhos validos sao
+    #    'agentCard/v1.0' e 'agentCard/v0.3', SEM barra inicial: com barra, o
+    #    servico responde "Agent card path is invalid for a Foundry agent".
+    #
+    #  send_credentials_for_agent_card
+    #    Campo existe no SDK e NAO consta da referencia de API. A doc afirma:
+    #    "All A2A URLs require Microsoft Entra ID authentication. Anonymous
+    #    access to the agent card isn't supported." Logo, buscar o card sem
+    #    credencial nao pode funcionar entre agentes Foundry.
+    card_path = spec.get("a2a_agent_card_path", "agentCard/v1.0")
+    enviar_cred = spec.get("a2a_send_credentials_for_agent_card", True)
+
     for conn_name in spec.get("a2a_connections", []) or []:
         if dry_run:
-            print(f"   [dry-run] A2APreviewTool <- connection '{conn_name}'")
+            print(f"   [dry-run] A2APreviewTool <- '{conn_name}' "
+                  f"(card_path={card_path!r}, send_credentials={enviar_cred})")
             continue
         try:
             conn = project.connections.get(conn_name)
@@ -93,8 +110,21 @@ def montar_tools(spec: dict, project: AIProjectClient, dry_run: bool) -> list:
                 f"ERRO: connection A2A '{conn_name}' nao encontrada no projeto: {exc}\n"
                 f"Crie antes com: ./scripts/create_a2a_connection.sh <agente-alvo> {conn_name}"
             )
-        tools.append(A2APreviewTool(project_connection_id=conn.id))
-        print(f"   A2APreviewTool <- connection '{conn_name}' (id={conn.id})")
+        kwargs = {"project_connection_id": conn.id}
+        if card_path:
+            kwargs["agent_card_path"] = card_path
+        if enviar_cred is not None:
+            kwargs["send_credentials_for_agent_card"] = enviar_cred
+        # base_url: a doc .NET so seta quando a connection NAO e RemoteA2A
+        #   if (!string.Equals(a2aConnection.Type.ToString(), "RemoteA2A")) { ... }
+        # mas o exemplo JSON da doc mostra base_url E project_connection_id juntos.
+        # Controlado por 'a2a_base_url' no yaml para permitir o experimento.
+        base_url = spec.get("a2a_base_url")
+        if base_url:
+            kwargs["base_url"] = base_url
+        tools.append(A2APreviewTool(**kwargs))
+        print(f"   A2APreviewTool <- '{conn_name}' "
+              f"(card_path={card_path!r}, send_credentials={enviar_cred})")
 
     if spec.get("knowledge_files"):
         print(

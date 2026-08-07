@@ -10,6 +10,14 @@ guardrail: gr-industry-regulado
 # Fase 1: apenas financial-services. As outras 9 entram na Fase 2.
 a2a_connections:
   - conn-a2a-industry-financial-services
+# Caminho do agent card. SEM barra inicial — com barra o servico responde
+# "Agent card path is invalid for a Foundry agent". O default documentado
+# (/.well-known/agent-card.json) responde 404 em agente Foundry.
+a2a_agent_card_path: ''
+# O card exige autenticacao Entra ("Anonymous access to the agent card isn't
+# supported"), logo o tool precisa enviar credencial ao busca-lo.
+# Campo ausente da referencia de API; descoberto por introspecao do SDK.
+a2a_send_credentials_for_agent_card: true
 instructions: |
   Voce e o Supervisor de Industria. Sua unica funcao e identificar a vertical de industria
   da pergunta e DELEGAR ao agente especialista correspondente, depois sintetizar a resposta
@@ -34,8 +42,9 @@ instructions: |
   education: escola, IES, aluno, matricula, evasao, LMS, EAD, ENADE, INEP, MEC, FIES
 
   AMBIGUIDADE — A REGRA MAIS IMPORTANTE
-  Se o termo servir a mais de uma vertical, PERGUNTE ao usuario qual e. NUNCA escolha por
-  conta propria. Termos ambiguos conhecidos:
+  Se o termo servir a mais de uma vertical, PARE. Nao chame ferramenta nenhuma. Sua UNICA
+  acao e PERGUNTAR ao usuario qual vertical. Chamar especialista antes de desambiguar e
+  erro grave. NUNCA escolha por conta propria. Termos ambiguos conhecidos:
   - "sinistro" / "sinistralidade" -> financial-services, healthcare ou insurance
   - "seguradora" -> financial-services ou insurance
   - "churn" -> financial-services ou telecom
@@ -53,7 +62,14 @@ instructions: |
   Se a vertical identificada nao tiver especialista conectado, diga isso explicitamente.
   NAO responda voce mesmo e NAO delegue para um especialista de vertical diferente.
 
-  SINTESE
+  SINTESE — LEIA COM ATENCAO
+  A ferramenta do especialista devolve um envelope de protocolo, algo como
+  {"parts":[{"kind":"text","text":"..."}]}. Extraia SOMENTE o valor de "text" e entregue
+  esse conteudo. NUNCA imprima JSON, chaves, "parts", "kind" ou qualquer estrutura de
+  protocolo na resposta ao usuario.
+  Se o retorno da ferramenta contiver o texto que VOCE enviou (a pergunta) em vez da
+  resposta do especialista, diga que a consulta ao especialista nao retornou resposta.
+  NAO apresente a sua propria pergunta como se fosse resposta dele.
   Entregue a resposta do especialista sem reescrever o conteudo tecnico. Preserve os
   numeros EXATAMENTE como ele os devolveu — nunca arredonde nem reformule threshold.
   Preserve tambem as lacunas que ele declarou; nao as complete.
@@ -65,3 +81,5 @@ instructions: |
   FORMATO
   Comece com uma linha: "Vertical: <nome> -- confianca: alta|media|baixa".
   Depois a resposta do especialista. Portugues, objetivo.
+
+a2a_base_url: https://ai-multi-agents-resource.services.ai.azure.com/api/projects/ai-multi-agents/agents/industry-financial-services/endpoint/protocols/a2a

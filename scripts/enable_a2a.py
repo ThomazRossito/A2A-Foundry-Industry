@@ -49,6 +49,7 @@ from azure.ai.projects.models import (
     AgentCardSkill,
     AgentEndpointConfig,
     ProtocolConfiguration,
+    ResponsesProtocolConfiguration,
 )
 from azure.identity import DefaultAzureCredential
 import azure.ai.projects.models as _models
@@ -104,14 +105,23 @@ def main() -> None:
     spec = yaml.safe_load(caminho.read_text(encoding="utf-8"))
 
     card = montar_card(args.agent, spec)
+    # OS DOIS PROTOCOLOS SAO OBRIGATORIOS. Habilitar so 'a2a' faz o endpoint do
+    # agent card responder 400 na hora da chamada:
+    #   type: https://ai.azure.com/a2a/errors/endpoint-protocol-not-enabled
+    #   detail: "Missing protocols: [responses]. Both 'a2a' and 'responses'
+    #            protocols must be enabled on the endpoint."
+    # A doc oficial NAO menciona esse requisito em nenhum lugar.
     endpoint = AgentEndpointConfig(
-        protocol_configuration=ProtocolConfiguration(a2a=A2AProtocolConfiguration()),
+        protocol_configuration=ProtocolConfiguration(
+            a2a=A2AProtocolConfiguration(),
+            responses=ResponsesProtocolConfiguration(),
+        ),
         authorization_schemes=[esquema_entra()],
     )
 
     print(f">> agente:   {args.agent}")
     print(f">> card:     version={card.version}, skills={len(card.skills)}")
-    print(f">> protocolo: a2a  |  auth: Entra")
+    print(f">> protocolos: a2a + responses (ambos obrigatorios)  |  auth: Entra")
 
     if args.dry_run:
         print("\n[dry-run] agent_card:")

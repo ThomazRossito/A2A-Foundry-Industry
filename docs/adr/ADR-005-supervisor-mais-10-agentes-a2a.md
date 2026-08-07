@@ -322,6 +322,135 @@ Para produção isso remove a necessidade do gateway que o baseline manda constr
 **Pendência:** validar se `traffic_percentage` aceita valores < 100 e múltiplas regras (ex.: 90%
 em `:1` e 10% em `:2`). Se aceitar, é canary sem infra adicional.
 
+### ✅ CONFIGURAÇÃO QUE FUNCIONA — não alterar sem testar
+
+Após 6 permutações. Guarde esta combinação:
+
+**No especialista** (`scripts/enable_a2a.py`):
+
+```python
+AgentEndpointConfig(
+    protocol_configuration=ProtocolConfiguration(
+        a2a=A2AProtocolConfiguration(),
+        responses=ResponsesProtocolConfiguration(),   # OBRIGATORIO junto
+    ),
+    authorization_schemes=[EntraAuthorizationScheme()],
+)
+AgentCard(version="1.0.0", description=..., skills=[AgentCardSkill(id=..., name=..., ...)])
+```
+
+**Na connection** (`scripts/create_a2a_connection.sh`):
+
+```json
+{ "authType": "AgenticIdentityToken", "category": "RemoteA2A",
+  "target": "<url do endpoint a2a>", "audience": "https://ai.azure.com",
+  "Credentials": {} }
+```
+→ **sem `metadata.AgentCardPath`**
+
+**No tool do supervisor** (`agents/supervisor-industry.yaml`):
+
+```yaml
+a2a_base_url: <url do endpoint a2a do especialista>   # SETADO
+a2a_agent_card_path: ''                               # VAZIO
+a2a_send_credentials_for_agent_card: true             # true
+```
+
+Corresponde ao exemplo JSON de `/agents/concepts/agent-to-agent-authentication`:
+
+```json
+{ "type": "a2a_preview", "base_url": "...", "project_connection_id": "...",
+  "send_credentials_for_agent_card": true }
+```
+
+⚠️ Note que **`base_url` é setado mesmo com connection `RemoteA2A`** — o que contraria o
+snippet .NET da doc (`if (!string.Equals(a2aConnection.Type.ToString(), "RemoteA2A")) { ...BaseUri... }`).
+Sem `base_url`, a chamada falha com "Agent card path is invalid for a Foundry agent".
+
+**RBAC:** `Foundry Agent Consumer` (`eed3b665-ab3a-47b6-8f48-c9382fb1dad6`) no escopo
+`.../agents/<especialista>`, para o `instance_identity.principal_id` do supervisor.
+
+### 🔴 Comportamento não determinístico do card fetch — para ticket de suporte
+
+Com a configuração acima **inalterada**, na mesma execução da suíte:
+
+| Chamada | Resultado |
+|---|---|
+| 1 (ECL/IFRS 9) | ✅ tool A2A invocada com sucesso |
+| 2 (sinistralidade) | ❌ `400 tool_user_error: "Agent card path is invalid for a Foundry agent"` |
+| 3 (OEE) | ✅ |
+| 4 (fora de escopo) | ✅ |
+
+Mesma config, mesma sessão, resultados diferentes. Hipóteses não testadas: cache do card no
+lado do tool, ou race entre versões do agente (`@latest` mudou de v2 para v3 durante o teste).
+
+**Evidência para suporte:** cada resposta HTTP traz `apim-request-id` e `x-request-id`. O
+`agentCard/v1.0` responde `200` consistentemente quando buscado direto com token Entra
+(`scripts/probe_card.sh`), o que localiza o problema no tool, não no endpoint.
+
+### Detalhes dos erros percorridos até chegar lá
+
+### 🔴 A2A exige DOIS protocolos: `a2a` **e** `responses`
+
+Requisito **não documentado**. Habilitando só `a2a`, o endpoint do agent card responde:
+
+```json
+{
+  "type": "https://ai.azure.com/a2a/errors/endpoint-protocol-not-enabled",
+  "title": "Endpoint Protocol Not Enabled",
+  "status": 400,
+  "detail": "Agent 'industry-financial-services' does not have the required endpoint
+             protocols enabled. Missing protocols: [responses]. Both 'a2a' and
+             'responses' protocols must be enabled on the endpoint."
+}
+```
+
+Correção:
+
+```python
+ProtocolConfiguration(
+    a2a=A2AProtocolConfiguration(),
+    responses=ResponsesProtocolConfiguration(),   # obrigatorio junto
+)
+```
+
+Faz sentido em retrospecto: o A2A é uma camada sobre o endpoint de responses — sem responses
+não há o que expor. Mas nada na doc diz isso, e a mensagem de erro só aparece ao buscar o card,
+não ao configurar.
+
+**Caminhos do agent card, verificados:**
+
+| Caminho | Resultado |
+|---|---|
+| `/agentCard/v1.0` | ✅ válido (400 apenas por causa do protocolo faltante) |
+| `/agentCard/v0.3` | ✅ válido |
+| `/.well-known/agent-card.json` | ❌ **404** — apesar de ser o default documentado do `A2APreviewTool` |
+| raiz `/protocols/a2a` | `405`, `allow: POST` — é o endpoint de invocação |
+
+### 🔴 `AgentCardPath` da doc quebra a chamada em runtime
+
+A doc manda gravar na connection:
+
+```json
+"metadata": { "AgentCardPath": "/agentCard/v1.0" }
+```
+
+Isso é aceito na criação da connection e **falha na primeira invocação A2A**:
+
+```
+400 tool_user_error
+"Agent card path is invalid for a Foundry agent. Either fix the agent card path
+ or remove it to use the default agent card path."
+```
+
+**Correção:** para alvo Foundry, **omitir `metadata.AgentCardPath`**. O serviço resolve o
+caminho do card sozinho.
+
+Detalhe importante do diagnóstico: o código do erro é **`tool_user_error`**, não `401`/`403`.
+Isso prova que a autenticação (`AgenticIdentityToken` + `Foundry Agent Consumer` no escopo do
+agente) **funcionou** e que o supervisor efetivamente invocou a tool A2A. A falha é de
+configuração do caminho do card, não da cadeia de identidade.
+
 ### ⚠️ Delete de agente com sessões ativas
 
 ```
