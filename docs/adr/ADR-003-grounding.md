@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Status | ⚠️ **Superada por [ADR-004](ADR-004-agente-unico-com-kb-tools.md)** |
-| Motivo | A Fase 1 propunha KB **inline nas instruções**. Com o desenho de agente único isso exigiria carregar as 10 KBs (~27k tokens) por invocação. ADR-004 adota KB como **retorno de ferramenta** (~4k tokens, 1 vertical por vez) |
+| Status | ✅ **Reativada por [ADR-005](ADR-005-supervisor-mais-10-agentes-a2a.md)** — KB inline nas instruções de cada especialista |
+| Motivo | Com 11 agentes separados, cada especialista carrega **apenas a sua própria KB** (~2,5–3,5k tokens). A objeção que o ADR-004 levantou (carregar as 10 KBs num só agente) não existe neste desenho |
 | Ainda válido | O levantamento de tamanho dos arquivos, as restrições de File Search sob VNet e os gatilhos de migração para Azure AI Search |
 | Data | 2026-08-07 |
 | Decisores | Thomaz Rossito |

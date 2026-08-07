@@ -12,7 +12,7 @@ especialistas de indústria.
 | Região | `eastus2` |
 | Modelos deployados | `claude-sonnet-5`, `claude-sonnet-5-1` |
 | Env Python | conda `ai_agents_froundry` — Python 3.13.14 ✅ |
-| Status | 🟢 **`supervisor-industry` v1 no ar** (deploy 07/08/2026 19:21, eastus2). 5/5 testes de roteamento |
+| Status | 🟡 **Reset em curso** — desenho corrigido para 11 agentes ([ADR-005](docs/adr/ADR-005-supervisor-mais-10-agentes-a2a.md)). Implementação da Fase 1 pendente |
 | Última atualização deste doc | 2026-08-07 |
 
 ---
@@ -47,7 +47,7 @@ Contrato de cada agente em [`docs/agents/`](docs/agents/).
 | [04-governanca-seguranca.md](docs/04-governanca-seguranca.md) | Identidade, guardrails, PII/LGPD, isolamento de rede |
 | [05-observabilidade-avaliacao.md](docs/05-observabilidade-avaliacao.md) | Tracing, monitoring, avaliadores, critérios de aceite |
 | [06-guardrails.md](docs/06-guardrails.md) | Os 2 guardrails, controles por risco, quando configurar |
-| [adr/ADR-004](docs/adr/ADR-004-agente-unico-com-kb-tools.md) | **Desenho implementado** — agente único com ferramentas de KB |
+| [adr/ADR-005](docs/adr/ADR-005-supervisor-mais-10-agentes-a2a.md) | **Desenho oficial** — supervisor + 10 agentes especialistas via A2A |
 | [adr/](docs/adr/) | Demais decisões de arquitetura, com o que foi superado marcado |
 | [99-referencias.md](docs/99-referencias.md) | Todas as fontes oficiais consultadas, com data |
 
@@ -64,7 +64,7 @@ Leia [02-pre-requisitos.md](docs/02-pre-requisitos.md) na íntegra. Resumo:
 3. **VNet não é retrofitável** — se o isolamento de rede for requisito, o Foundry account
    precisa ser recriado.
 4. **Connected Agents está deprecado** — não é o caminho. Ver [ADR-001](docs/adr/ADR-001-orquestracao.md).
-5. **O desenho atual é 1 agente com 10 KBs, não 11 agentes** — logo, sem RBAC nem guardrail por vertical. Ver [ADR-004](docs/adr/ADR-004-agente-unico-com-kb-tools.md) §Consequências.
+5. **A2A está em preview** — sem SLA, só texto, sem streaming, v1.0 só JSONRPC. Risco aceito; ver [ADR-005](docs/adr/ADR-005-supervisor-mais-10-agentes-a2a.md) §Limites.
 
 ---
 
