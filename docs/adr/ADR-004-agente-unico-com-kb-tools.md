@@ -192,52 +192,48 @@ guards de ambiguidade e as regras L1–L4 deste `main.py` não mudam.
 ⚠️ Ao migrar, aceitar formalmente que o **A2A está em preview** (sem SLA, só texto, sem
 streaming, v1.0 só JSONRPC) — ver [ADR-001](ADR-001-orquestracao.md) §Opções avaliadas.
 
-## 🔴 Achado pós-deploy: o Toolkit reescreve o `azure.yaml`
+## Dimensionamento do container
 
-O deploy pelo Foundry Toolkit **modificou o `azure.yaml` versionado**, sem prompt:
+O `azure.yaml` foi ajustado **deliberadamente pelo time** de `0.5 vCPU / 1Gi` (valor inicial que
+eu havia proposto) para:
 
-```diff
-       runtime: python_3_13
-       entryPoint: main.py
-+      dependencyResolution: remote_build
-     container:
-       resources:
--        cpu: '0.5'
--        memory: 1Gi
-+        cpu: '1.0'
-+        memory: 2.0Gi
+```yaml
+    container:
+      resources:
+        cpu: '1.0'
+        memory: 2.0Gi
 ```
 
-**Hipótese da causa** (⚠️ NÃO CONFIRMADO na doc): o modo `remote_build` exige o tier de 1 vCPU
-ou maior. A doc de hosted agents afirma que o orçamento de disco é *"up to 20 GiB at 1 vCPU or
-larger"*, o que é consistente, mas não estabelece a obrigatoriedade.
+### Por que 1 vCPU é a escolha melhor
 
-### Impacto de custo
+A doc de hosted agents dá o argumento técnico: o orçamento de disco por sessão é
+*"up to 20 GiB at 1 vCPU or larger"*. Abaixo de 1 vCPU, o disco disponível é menor. Como o
+agente carrega a KB do disco a cada chamada de `consultar_kb_vertical`, ficar no tier de 0,5
+vCPU não trazia vantagem real.
 
-Dobro de compute por sessão. E o efeito é multiplicativo porque a escala é por sessão:
-*"the cpu and memory values you set on an agent version describe a single session, not the
-aggregate footprint of the agent."*
+### Implicação de custo — atenção
 
-### Impacto de processo — o mais grave
+A escala é **por sessão**, não por réplica: *"the cpu and memory values you set on an agent
+version describe a single session, not the aggregate footprint of the agent."*
 
-**O `azure.yaml` deixa de ser fonte de verdade** se a ferramenta de deploy o edita. O commit
-passa a registrar o que o Toolkit decidiu, não o que o time especificou. Isso contraria a
-recomendação oficial de *"Define agents as code. Store agent definitions, connections, system
-prompts, and parameters in source control."*
+Portanto 1 vCPU / 2 GiB é o consumo de **cada sessão simultânea**, não o total do agente. Com o
+teto de **50 sessões concorrentes por subscription por região**, o pior caso é 50 × (1 vCPU /
+2 GiB). Dimensionar para cima é uma decisão de custo, não só de performance — e por isso deve
+seguir sendo decisão explícita, como foi aqui.
 
-### Mitigações
+Tiers disponíveis, conforme a doc: `0.5 vCPU / 1 GiB`, `1 vCPU / 2 GiB`, `2 vCPU / 4 GiB`.
 
-| # | Ação |
-|---|---|
-| 1 | `git diff --exit-code azure.yaml` **obrigatório** após todo deploy no CI; falhar o pipeline em drift |
-| 2 | Testar se `cpu: '0.5'` sobrevive com `dependencyResolution` explícito no arquivo |
-| 3 | Avaliar o caminho `azd deploy` (CLI) para verificar se apresenta o mesmo comportamento |
-| 4 | Revisar o dimensionamento contra carga real antes de prod — 1 vCPU pode ser correto, mas deve ser **decisão**, não default silencioso |
+### Artefatos que o deploy criou
 
-### Artefato adicional
+| Arquivo | Conteúdo | Versionar? |
+|---|---|---|
+| `.foundry/.deployment.json` | `deploymentMethod: zip`, `zipPackageMode: remote`, `zipRuntime: python_3_13`, `zipEntryPoint`, `projectId` | Sim — sem segredos, ajuda reprodutibilidade |
 
-O deploy criou `.foundry/.deployment.json` com as opções de deploy e o `projectId`. Sem
-segredos; mantido versionado por ajudar a reprodutibilidade.
+⚠️ **NÃO CONFIRMADO — a verificar:** a linha `codeConfiguration.dependencyResolution:
+remote_build` apareceu no `azure.yaml` no mesmo commit. Não está estabelecido se foi escrita
+pelo time ou injetada pelo Toolkit durante o deploy. Se foi o Toolkit, vale um
+`git diff --exit-code azure.yaml` no CI para detectar drift. **Confirmar antes de tratar como
+requisito de processo.**
 
 ---
 
@@ -248,5 +244,5 @@ segredos; mantido versionado por ajudar a reprodutibilidade.
 - [ ] Atualizar 04 §1.3 e 06 §2 para refletir 1 agente em vez de 11
 - [x] Application Insights criado (`ai-multi-agents-appinsights`, workspace-based) e apontado para workspace próprio (`ai-multi-agents-law`, retenção 30d)
 - [ ] **Conectar** o App Insights ao projeto no portal Foundry — sem isso não há coleta
-- [ ] Diff obrigatório de `azure.yaml` no CI (ver achado pós-deploy acima)
+- [ ] Confirmar a autoria de `dependencyResolution: remote_build` no `azure.yaml`
 - [ ] Atribuir `gr-industry-regulado` explicitamente ao `supervisor-industry`
