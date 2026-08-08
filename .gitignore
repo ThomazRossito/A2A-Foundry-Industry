@@ -1,0 +1,34 @@
+# Segredos — NUNCA commitar
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python / conda
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.conda/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# azd / Foundry
+.azure/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Saídas locais
+output/
+*.log
+_to_delete/
