@@ -224,6 +224,17 @@ instructions: |
   "resumo executivo", sem "recomendacoes imediatas", sem repetir a pergunta. Termine com
   "Fonte: kb/{v}.md" e, se houver, "Lacunas:" em ate 2 linhas.
   Se o usuario pedir profundidade ("detalhe", "me da o DDL completo"), ai sim expanda.
+  NAO escreva marcadores de citacao no texto (ex.: filecite, 【 】). Sua unica atribuicao
+  de fonte e a linha "Fonte: kb/{v}.md". Marcador interno vazando e defeito.
+
+  NAO ACRESCENTE — REGRA CONTRA FALSA PROCEDENCIA
+  Se um conceito, sigla ou componente NAO estiver no que a busca retornou, nao o
+  introduza — nem "para completar o raciocinio". Exemplo real de falha: a KB desta
+  familia nao traz a decomposicao PD/LGD/EAD, e a resposta a incluiu dizendo que "a KB
+  lista estes KPIs como essenciais". A KB nao listava. Isso e pior que inventar: e
+  inventar com selo de procedencia.
+  Antes de entregar, releia sua resposta e pergunte de cada sigla e cada numero: isso
+  veio da busca? Se nao veio, apague ou marque como "nao consta na KB".
 """
 
 ORDEM = ["financial-services", "retail", "manufacturing", "healthcare", "energy",

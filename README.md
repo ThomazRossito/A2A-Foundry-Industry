@@ -12,7 +12,7 @@ especialistas de indústria.
 | Região | `eastus2` |
 | Modelos deployados | `claude-sonnet-5`, `claude-sonnet-5-1` |
 | Env Python | conda `ai_agents_froundry` — Python 3.13.14 ✅ |
-| Status | 🟡 **Fase 2 provisionada, ainda não aprovada** — os **11 agentes** estão no ar (supervisor `:7` com 10 `A2APreviewTool`; cada especialista com KB própria em vector store, `tool_choice: required`, A2A `a2a`+`responses`, identidade Entra dedicada e RBAC no escopo do agente). Validado end-to-end apenas em `financial-services` e `telecom`; o **roteamento com 10 destinos** depende da suíte revisada (`scripts/testar.py`, 6 casos). Governança (guardrails + App Insights) = Fase 3 |
+| Status | 🟢 **11 agentes no ar e auditados** — supervisor `:8` com 10 `A2APreviewTool`; especialistas `:3` (financial-services `:4`) com KB própria, `tool_choice: required` e identidade Entra dedicada. Suíte: 4/5 automáticos passam, 1 indeterminado por design. A garantia de delegação vive em `scripts/cliente.py` (guarda de contrato + retry), não no prompt — ver ADR-005 §D1. Pendente: guardrails, App Insights, teto real de `instructions` |
 | Última atualização deste doc | 2026-08-07 |
 
 ---

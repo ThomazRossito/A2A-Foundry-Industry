@@ -633,6 +633,344 @@ Registrar como restrição de operação: **mudança de `kind` = delete + recrea
 
 ---
 
+## Achados da suíte com 10 especialistas — 08/08/2026
+
+Primeira execução da suíte revisada (6 casos) com a topologia completa, seguida de
+3 repetições dos 2 casos que falharam. Resultado bruto: **4/6 na primeira passada**,
+e as duas falhas **não reproduziram** em 3 tentativas cada.
+
+Mas o diagnóstico só apareceu porque o `testar.py` passou a imprimir a **trilha de
+tools**. Antes disso a suíte estava escondendo o pior defeito do sistema.
+
+### 🔴 CRÍTICO: o supervisor às vezes NÃO delega e falsifica a procedência
+
+`tool_choice` do supervisor está **ausente** → o serviço usa o default (`auto`) → o
+modelo **pode escolher não chamar tool nenhuma**. Em 1 de 3 execuções da mesma pergunta
+(ECL/IFRS 9) a trilha veio:
+
+```
+[trilha] status=completed | reasoning -> reasoning -> reasoning -> message
+```
+
+**Nenhum `a2a_preview_call`.** O supervisor respondeu ~50 linhas de conteúdo técnico de
+crédito por conta própria — violando a REGRA INVIOLÁVEL S1 e o mandato de delegação — e
+fechou com:
+
+> "Lacunas declaradas pela KB: a KB não especifica templates de DDL/SQL..."
+
+**Atribuiu à KB uma declaração de uma KB que ele nunca leu.** O supervisor não tem
+`FileSearchTool`; não tem acesso a KB alguma. A resposta também **não traz a linha
+`Fonte:`** — única pista textual da falha.
+
+Gravidade máxima justamente porque a resposta é **plausível e bem formatada**. Um
+revisor lendo em diagonal aprova. É exatamente o modo de falha que a arquitetura inteira
+existe para impedir, e ele passou.
+
+Termos verificados por grep contra `kb/financial-services.md`: `SICR` 0, `RMSE` 0,
+`AUC` 0, `lifetime` 0, `drawdown` 0, `adverse` 0, `optimistic` 0, `backtest` 0.
+(`KS` deu 4 no grep ingênuo — todas dentro de "databricks". Substring, não KPI.)
+
+### 🔴 CRÍTICO: falsa atribuição à KB TAMBÉM no caminho delegado
+
+Não é só o supervisor. `PD`, `LGD` e `EAD` aparecem **zero vezes** em
+`kb/financial-services.md` (verificado com fronteira de palavra: `\bPD\b` = 0;
+`lgd` e `ead` como substring = 0 ocorrências). A KB traz `DPD` (dias em atraso),
+`stage_ifrs9`, `ecl_amount` — não a decomposição PD×LGD×EAD.
+
+Ainda assim, na tentativa 3 — **com** `a2a_preview_call` na trilha, **com**
+`tool_choice: required` e **com** `FileSearchTool` no especialista:
+
+> "KPIs essenciais e validações requeridas: **PD, LGD, EAD (KB lista estes KPIs como
+> essenciais)**"
+
+A KB não lista. A afirmação sobre a fonte é falsa.
+
+**Consequência para o ADR-006:** a receita de 3 partes (File Search + `tool_choice:
+required` + instrução que trata o "não achei") **reduz mas não elimina** conteúdo não
+fundamentado. E ela muda a **forma** da falha: em vez de invenção óbvia, produz
+**invenção com selo de procedência** — mais difícil de pegar, não menos. A afirmação
+anterior de que a receita estava "validada" precisa ser lida como *validada naquele
+caso de teste*, não como garantia.
+
+> **Não sei ainda quem injetou `PD/LGD/EAD`** — o especialista, ou o supervisor durante
+> a síntese (ele é instruído a "entregar sem reescrever", o que não o impede de
+> acrescentar). A chamada **direta** ao especialista, sem A2A, veio limpa:
+> `reasoning -> file_search_call -> reasoning -> message`, sem PD/LGD/EAD, e com
+> `"Lacunas: KB não define a fórmula matemática de ECL"`. Uma amostra não decide.
+> **Teste decisivo pendente:** chamar o especialista direto N vezes e ver se PD/LGD/EAD
+> aparece alguma vez.
+
+### 🔴 Marcadores de citação do File Search vazam como texto literal
+
+Na delegação para `education`, a resposta entregue ao usuário continha:
+
+```
+... gold.fct_dropout_risk (risk_score, main_risk_factors) fileciteturn0file5.
+... benchmark 15-25% fileciteturn0file2turn0file0.
+```
+
+`fileciteturn0file5` é marcador interno de annotation do File Search, entregue cru.
+Em outras respostas o mesmo fenômeno aparece degradado — sobra um `" ."` (espaço antes
+do ponto) onde o marcador foi removido. Tratamento inconsistente de annotations.
+
+Não é alucinação, mas é **bloqueador de produção**: vaza token interno na tela do
+usuário. Provável causa: a resposta é consumida como texto puro sem processar
+`annotations` do item de mensagem.
+
+### ⚠️ Não determinismo — 3 comportamentos para a mesma entrada
+
+`"quero prever evasao de alunos inadimplentes"`, 3 execuções:
+
+| # | Trilha | Comportamento |
+|---|---|---|
+| 1 | `a2a_preview_call:conn-a2a-industry-education` | delegou a education |
+| 2 | `reasoning -> message` | **perguntou** qual vertical |
+| 3 | `a2a_preview_call:conn-a2a-industry-education` | delegou a education |
+
+Ambos são defensáveis, e é aí que está o problema: a instrução do supervisor lista
+`"inadimplencia" -> financial-services ou education` como ambíguo e manda
+`PARE. Nao chame ferramenta nenhuma` — regra **incondicional**. Mas "evasão de **alunos**"
+resolve a ambiguidade pelo contexto. A regra e o contexto se contradizem, e o modelo
+alterna entre os dois. **Decisão de design pendente**, não bug.
+
+### ⚠️ As 2 falhas da primeira passada foram transientes
+
+| Falha original | Reproduziu em 3x? |
+|---|---|
+| `(Tool call in progress)` — run terminou após a tool call, sem compor resposta | **não** |
+| `A2A exception (InternalError): InternalServerError` | **não** |
+
+Transiente **não** é o mesmo que resolvido: são ~2 falhas em ~10 chamadas A2A na mesma
+sessão, ou seja **ordem de 20% de falha intermitente** na camada A2A preview. Número de
+amostra pequena, não é taxa medida — mas alto o bastante para exigir **retry com backoff
+no cliente** antes de qualquer uso real. Coerente com o risco de preview já aceito neste
+ADR.
+
+### ✅ O que a suíte provou que funciona
+
+- **Guard de ambiguidade tripla** (`sinistralidade`): perguntou, listou healthcare /
+  insurance / financial-services, **não escolheu**. Passou com os 3 conectados.
+- **Roteamento para manufacturing**: `MF01`–`MF05`, `silver.fct_sensor_readings(reading_ts,
+  asset_id, sensor_id, parameter_name, value, is_anomaly, anomaly_score)`, `expect_or_drop`,
+  `z_score > 3.0` — todos conferidos na KB. Não escreveu fórmula de OEE de memória: usou
+  "Disponibilidade × Performance × Qualidade", que está na linha 137 da KB.
+- **Guard de escopo** (clima): recusou em 3 linhas, e a trilha confirma que **nenhuma
+  tool A2A foi chamada** — critério que antes era inverificável.
+- **Roteamento para logistics**: `LG01`–`LG06` conferem. Zero `{`, `}`, `parts`, `kind` —
+  a proibição explícita de caractere continua segurando.
+
+### Defeito menor: sigla corrompida
+
+O especialista de manufacturing escreveu `Quality (FPS)`. A KB (linha 140) diz
+`Quality (First Pass Yield)` — **FPY**. Não é número inventado; é sigla de um termo que
+estava na fonte, corrompida na cópia. `MF03` na própria KB escreve "FPY" corretamente.
+
+### Duas invariantes agora verificáveis por máquina
+
+A trilha destravou dois testes automáticos que substituem inspeção visual:
+
+1. **Resposta de domínio SEM `a2a_preview_call` na trilha = falha.** Pega o caso crítico
+   acima de forma determinística.
+2. **Resposta de domínio sem a linha `Fonte: kb/<vertical>.md` = falha.** Foi a única
+   pista textual da não-delegação.
+
+---
+
+## Decisões tomadas em 08/08/2026 sobre os achados acima
+
+### D1 — A garantia de delegação vive no cliente, não no prompt
+
+**Decidido:** guarda no cliente (`scripts/cliente.py`).
+
+**Alternativa recusada:** `tool_choice: required` no supervisor. Ele forçaria ≥1 chamada
+de ferramenta em **todo** turno, quebrando justamente os dois guards que dependem de
+**não** chamar nada — ambiguidade e fora-de-escopo passariam a ser obrigados a acionar
+algum especialista.
+
+> ⚠️ **Não verifiquei essa semântica na doc do serviço.** É o comportamento que
+> `required` tem na Responses API pelo que entendo, e é coerente com o efeito observado
+> nos especialistas, mas **não confirmei para Prompt Agent do Foundry**. Se alguém quiser
+> derrubar D1, o teste é barato: setar `required` no supervisor e rodar os casos 2 e 4.
+
+**Alternativa recusada:** só endurecer a instrução. É a opção que o ADR-006 já provou
+insuficiente — instrução sem trava mecânica não segura.
+
+#### O contrato que a guarda verifica
+
+A primeira linha da resposta virou contrato legível por máquina. Quatro inícios
+permitidos, e cada um determina o que a **trilha de tools** tem que conter:
+
+| Primeira linha | Trilha exigida | Corpo exigido |
+|---|---|---|
+| `Vertical: <nome> -- confianca: ...` | **com** `a2a_preview_call:...-<nome>` | `Fonte: kb/<nome>.md` |
+| `Vertical: ambigua` | **sem** `a2a_preview_call` | ≤ 6 linhas |
+| `Vertical: fora-de-escopo` | **sem** `a2a_preview_call` | ≤ 6 linhas |
+| `Vertical: indisponivel` | **sem** `a2a_preview_call` | ≤ 6 linhas |
+
+Violação → retry (backoff 2s, 4s) → se persistir, **`RespostaRejeitada`**. A guarda
+**nunca** devolve a resposta suspeita. O princípio: uma resposta plausível sem
+procedência é pior que um erro, porque passa por revisão humana.
+
+Validado em 6 casos sintéticos, incluindo a reprodução exata do defeito real
+(`Vertical: financial-services` + trilha `reasoning -> reasoning -> reasoning -> message`
+→ `FALSA PROCEDENCIA`).
+
+A guarda também faz **saneamento determinístico** dos marcadores de citação
+(`\ue200...\ue201`, `【...】`, `filecite*`, sobras da Private Use Area `U+E000–U+F8FF`),
+preservando a pontuação da frase. Defesa em profundidade: a instrução do especialista
+também os proíbe, mas instrução não é garantia.
+
+E cobre os transientes A2A: retry em `A2A exception`, `InternalError`, 5xx, timeout, e
+em run que termina sem mensagem final.
+
+### D2 — Ambiguidade passa a ser condicional: o teste do segundo termo
+
+**Decidido:** se outro termo da pergunta fixa **uma** vertical sem dúvida, delega; se não
+fixa, para e pergunta.
+
+- `"evasao de alunos inadimplentes"` → `alunos`/`evasao` fixam education → **delega**
+- `"sinistralidade da carteira"` → `carteira` serve a financial-services **e** insurance,
+  não fixa → **pergunta**
+
+Fallback explícito na instrução: *"Na duvida, trate como NAO e pergunte."* O risco
+assumido é que "sem dúvida" é julgamento do modelo, e julgamento é onde o não
+determinismo entra. Por isso o caso 5 da suíte ficou marcado como **`indeterminado`** —
+sem veredito automático, auditoria à mão.
+
+### D3 — Regra anti-falsa-procedência nos 10 especialistas
+
+Adicionada ao TEMPLATE em `gerar_agentes.py`, com o caso real como exemplo dentro da
+própria instrução (PD/LGD/EAD atribuído à KB que não os traz). Mais a proibição explícita
+de marcador de citação, no mesmo formato que funcionou para o envelope de protocolo:
+proibição de **token concreto**, não recomendação genérica.
+
+Exige **regerar os 10 YAMLs e reprovisionar** — os agentes no ar ainda têm a instrução
+antiga.
+
+### ⚠️ O supervisor está em 4085/4096 chars — contra um limite que não foi verificado
+
+Tive que cortar texto para caber. Mas o `4096` é o **guardrail que o `provision.py`
+impõe**, herdado da minha afirmação não verificada registrada no achado #16 deste
+projeto — a referência Python não documenta esse `maxLength`, e a referência REST saiu do
+learn.microsoft.com.
+
+Ou seja: pode ser que eu esteja degradando a instrução para respeitar um limite
+inexistente. **Pendência:** testar o teto real (subir uma versão com ~5000 chars e ver se
+o serviço aceita) antes de continuar comprimindo. Se aceitar, o guardrail do script sobe
+e a tabela de roteamento das 10 verticais volta a respirar.
+
+Sinal arquitetural independente do teto: tabela de roteamento de 10 verticais + 4 guards
++ regras de síntese num único prompt está no limite do formato. Se entrar a 11ª vertical,
+a saída provável é mover as palavras-chave para a `description` de cada agent card e
+deixar o supervisor consultar o card em vez de carregar a tabela.
+
+---
+
+## Resultado após aplicar D1/D2/D3 — 08/08/2026
+
+Reprovisionamento: 10 especialistas em `:3` (financial-services em `:4`, tinha uma versão
+extra), supervisor em `:8` com as 10 `A2APreviewTool`. Instruções: especialistas
+3560–3811/4096, supervisor 4084/4096.
+
+### ✅ O risco que eu havia sinalizado NÃO se materializou
+
+Eu avisei que a guarda poderia **rejeitar resposta legítima**, porque dependia de um
+contrato de primeira linha nunca executado. Não aconteceu: o supervisor emitiu os rótulos
+novos corretamente.
+
+| Caso | Primeira linha emitida | Trilha | Contrato |
+|---|---|---|---|
+| sinistralidade | `Vertical: ambigua` | `reasoning -> message` | ✅ |
+| clima | `Vertical: fora-de-escopo` | `reasoning -> message` | ✅ |
+| ECL, OEE, logistics, evasão | `Vertical: <nome> -- confianca: alta` | com `a2a_preview_call` | ✅ |
+
+E o `cliente.py` passou em **3 de 3** com `tentativas: 1` — nenhum descarte. Antes do
+reprovisionamento a mesma pergunta precisou de 2 tentativas. Amostra pequena, mas na
+direção certa.
+
+### ✅ D2 (teste do segundo termo) funcionando
+
+`"quero prever evasao de alunos inadimplentes"` → `Vertical: education` com
+`a2a_preview_call:conn-a2a-industry-education`. O contexto resolveu a ambiguidade, como
+decidido. E o guard incondicional continua valendo onde deve: `"sinistralidade da
+carteira"` → `Vertical: ambigua`, listando as três verticais, sem chamar tool.
+
+### 🔴 O `REPROVOU` do caso 1 era falso positivo MEU, não defeito do agente
+
+A suíte reprovou `financial-services` por `conteudo proibido presente: 'PD, LGD'`. Auditei
+frase por frase: **todas** as menções de PD/LGD/EAD estavam dentro de negação —
+
+> "A KB lista estes KPIs mas **NÃO fornece** fórmulas ou thresholds para PD, LGD, EAD"
+> "a KB **NÃO detalha** metodologias PD/LGD/EAD"
+> "**Lacunas:** KB **não traz** fórmulas/thresholds para PD, LGD, EAD"
+
+Ou seja: o especialista fez **exatamente** o que D3 pediu — nomeou o conceito para
+declarar que a KB não o cobre. Minha denylist literal (`"PD, LGD"`) reprovava a
+honestidade que a regra existe para produzir. Era o checador que estava errado.
+
+Comparação com a resposta **anterior** ao reprovisionamento, na mesma pergunta:
+
+> "componentes necessários — PD, LGD, EAD; classificação em estágios 1/2/3"
+> "KPIs essenciais e validações requeridas: PD, LGD, EAD (**KB lista estes KPIs como
+> essenciais**)"
+
+Afirmativo, sem negação, com procedência falsa explícita. A diferença entre os dois casos
+não é a presença da sigla — é o **contexto**.
+
+**Correção aplicada:** `siglas_afirmadas_sem_lastro()` segmenta a resposta e ignora
+segmentos negados (`não`, `sem`, `ausente`, `lacuna`, `inexiste`, `falta`, `carece`).
+Denylist literal removida de `testar.py`; `exige_lastro: True` nos 3 casos delegados,
+usando a **mesma função** do `cliente.py` — fonte única.
+
+Validado contra a KB real e as 3 respostas reais pós-reprovisionamento:
+
+| Resposta | checagem grossa (antiga) | sensível a negação (nova) |
+|---|---|---|
+| 1/5 | `EAD, LGD, PD` | `[]` |
+| 2/5 | `EAD, LGD, PD` | `[]` |
+| 3/5 | `EAD, LGD, PD` | `[]` |
+
+E contra a resposta pré-reprovisionamento (afirmativa): acusa `EAD, LGD, PD`. Separa os
+dois casos sem exceção nas amostras que temos.
+
+> ⚠️ Heurística de negação é heurística. Uma frase como "PD e LGD são componentes, embora
+> a KB não os detalhe" seria classificada como negada e passaria — negação no segmento não
+> prova que a sigla esteja no escopo da negação. Serve como rede, não como prova.
+
+### ✅ Sigla corrompida corrigida
+
+`Quality (FPS)` → agora `Quality / First Pass Yield (meta: > 98%)`, conferindo com a linha
+140 da KB. O especialista de manufacturing também passou a citar `MF06` e os alvos de
+`MTBF`, `MTTR`, `Scrap Rate (< 1%)`, `Rework Rate (< 0.5%)`.
+
+### ⚠️ Marcadores de citação: a instrução ajudou, o saneamento é que garante
+
+O marcador **visível** (`fileciteturn0file5`) desapareceu das respostas. Mas nas saídas do
+`testar.py` ainda aparece `" ."` — espaço antes do ponto — que é a assinatura de um
+delimitador **invisível** da Private Use Area ainda presente no texto.
+
+Conclusão: a proibição na instrução reduziu a forma visível; ela **não** eliminou o
+marcador. Quem entrega texto limpo é o `limpar()` do `cliente.py`. O `testar.py` não
+saneia de propósito — é sonda crua, e é assim que se vê que o defeito continua lá.
+
+### 🔴 Novo defeito: o supervisor oferece capacidade que não tem
+
+No guard de escopo, a recusa veio correta no rótulo, mas com:
+
+> "Posso: pedir sua localização (cidade/CEP) **para eu buscar a previsão**, ou sugerir
+> sites/apps de meteorologia. O que prefere?"
+
+Ele **não pode** buscar previsão do tempo — não tem tool de web, e clima está fora do
+escopo por definição. A instrução manda "diga o que voce faz"; ele disse o que **não**
+faz. Oferecer capacidade inexistente é uma forma de invenção, ainda que não seja sobre
+dados de KB.
+
+Não corrigido: o supervisor está em 4084/4096 e não há espaço para mais uma regra sem
+cortar outra. **Fica ligado à pendência do teto real de `instructions`** — se o limite for
+maior que 4096, isso entra junto.
+
+---
+
 ## Pendências
 
 - [x] `audience` = `https://ai.azure.com` e `authType` = `AgenticIdentityToken` — confirmados em execução
