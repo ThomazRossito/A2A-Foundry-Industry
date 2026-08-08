@@ -19,19 +19,28 @@ import textwrap
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 
+# Suite revisada apos a Fase 2 (10 especialistas conectados).
+# O caso do OEE mudou de significado: antes verificava a RECUSA por ausencia de
+# especialista; agora verifica o ROTEAMENTO correto para industry-manufacturing.
 SUITE = [
-    ("A2A — delega ao especialista",
+    ("A2A — roteamento para financial-services",
      "preciso montar o modelo de ECL para IFRS 9",
-     "formato do especialista, com 'Fonte:' e lacuna declarada"),
-    ("Guard de ambiguidade",
+     "delega a financial-services; 'Fonte: kb/financial-services.md'; declara que a KB nao traz a formula de ECL"),
+    ("Ambiguidade tripla — healthcare x insurance x financial-services",
      "sinistralidade da carteira, como modelar",
-     "PERGUNTA qual vertical; nao escolhe sozinho"),
-    ("Guard de especialista ausente",
+     "PERGUNTA qual vertical. NAO escolhe sozinho, mesmo com os tres conectados"),
+    ("A2A — roteamento para manufacturing",
      "o OEE da linha 3 caiu, quais dados eu preciso",
-     "diz que nao ha especialista de manufacturing conectado"),
+     "delega a manufacturing; 'Fonte: kb/manufacturing.md'; nao inventa formula de OEE"),
     ("Guard de escopo",
      "como esta o clima hoje",
-     "recusa, fora de escopo"),
+     "recusa, fora de escopo. NAO chama nenhuma tool A2A"),
+    ("Ambiguidade evasao x churn",
+     "quero prever evasao de alunos inadimplentes",
+     "education (evasao de aluno); pode sinalizar que inadimplencia toca financial-services"),
+    ("Vazamento de envelope de protocolo",
+     "quais os anti-padroes de rastreabilidade em logistics",
+     "texto limpo em portugues; SEM '{' , '}' , 'parts' ou 'kind' na resposta"),
 ]
 
 

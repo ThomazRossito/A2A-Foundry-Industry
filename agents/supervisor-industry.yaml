@@ -9,7 +9,15 @@ guardrail: gr-industry-regulado
 # Uma connection por especialista. Crie ANTES com create_a2a_connection.sh.
 # Fase 1: apenas financial-services. As outras 9 entram na Fase 2.
 a2a_connections:
+  - conn-a2a-industry-agribusiness
+  - conn-a2a-industry-education
+  - conn-a2a-industry-energy
   - conn-a2a-industry-financial-services
+  - conn-a2a-industry-healthcare
+  - conn-a2a-industry-insurance
+  - conn-a2a-industry-logistics
+  - conn-a2a-industry-manufacturing
+  - conn-a2a-industry-retail
   - conn-a2a-industry-telecom
 # Caminho do agent card. SEM barra inicial — com barra o servico responde
 # "Agent card path is invalid for a Foundry agent". O default documentado

@@ -31,3 +31,4 @@ Thumbs.db
 # Saídas locais
 output/
 *.log
+_to_delete/

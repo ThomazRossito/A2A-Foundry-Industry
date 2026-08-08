@@ -12,7 +12,7 @@ especialistas de indústria.
 | Região | `eastus2` |
 | Modelos deployados | `claude-sonnet-5`, `claude-sonnet-5-1` |
 | Env Python | conda `ai_agents_froundry` — Python 3.13.14 ✅ |
-| Status | 🟢 **Fases 1 e 1b concluídas** — vertical `financial-services` completo de ponta a ponta: supervisor → A2A → especialista → File Search → resposta fundamentada com lacunas declaradas. Faltam 9 verticais |
+| Status | 🟡 **Fase 2 provisionada, ainda não aprovada** — os **11 agentes** estão no ar (supervisor `:7` com 10 `A2APreviewTool`; cada especialista com KB própria em vector store, `tool_choice: required`, A2A `a2a`+`responses`, identidade Entra dedicada e RBAC no escopo do agente). Validado end-to-end apenas em `financial-services` e `telecom`; o **roteamento com 10 destinos** depende da suíte revisada (`scripts/testar.py`, 6 casos). Governança (guardrails + App Insights) = Fase 3 |
 | Última atualização deste doc | 2026-08-07 |
 
 ---

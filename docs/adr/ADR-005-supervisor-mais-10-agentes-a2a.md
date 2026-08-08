@@ -209,9 +209,58 @@ Sugestão: `industry-financial-services` (KB mais bem coberta).
 **Critério de aceite da fase:** a resposta cita a KB do especialista, e as traces mostram
 `gen_ai.agent.name = industry-financial-services` separado do supervisor.
 
-### Fase 2 — Replicar para os 9 restantes
+### ✅ Fase 2 — CONCLUÍDA (07/08/2026, 23:57 UTC)
 
 Script idempotente. Nada manual, porque 10 × 5 passos manuais é onde erro entra.
+
+```bash
+./scripts/provision_all.sh retail manufacturing healthcare energy \
+    agribusiness insurance logistics education
+```
+
+**Resultado:** os 10 especialistas subiram completos — agente criado, KB anexada em
+vector store próprio (`status=completed`, `FileCounts(completed=1, failed=0)`),
+reprovisionado com `FileSearchTool` + `tool_choice='required'`, A2A habilitado com
+`'protocols': ['a2a', 'responses']` e `authorization_schemes: [{'type': 'Entra'}]`,
+connection criada com `authType: AgenticIdentityToken` / `metadata: {}`, e RBAC do
+supervisor concedido no escopo do agente.
+
+**Supervisor:** `supervisor-industry:7` com **10 `A2APreviewTool`**, um por connection,
+cada um com o `base_url` derivado do `conn.target` da própria connection.
+`instructions: 3836/4096 chars`.
+
+**Cada especialista recebeu identidade Entra própria** — é a prova material de que são
+11 agentes de verdade, não 11 prompts dentro de um agente:
+
+| Agente | vector store | `instance_identity.principal_id` | blueprint |
+|---|---|---|---|
+| industry-financial-services | `vs_dp8btT2NeHxOoojfYLfLTyOb` | (Fase 1) | — |
+| industry-telecom | `vs_JFB59O5oo7S7wrUyyz9myClw` | (Fase 1) | — |
+| industry-retail | `vs_SDZEyLKraVCKqkSGlbvR2hNG` | — | — |
+| industry-manufacturing | `vs_18nuXaeGUGwAZJCHjaWinI3x` | `daad85de-703b-42fe-b756-caf00c7941a1` | `industry-manufacturing-0cff6` |
+| industry-healthcare | `vs_c6eBzkhmnrhEeLVyISjy2Xqq` | `b3d342d1-60f2-4b59-8bb9-4c3a44b766e0` | `industry-healthcare-a8e8c` |
+| industry-energy | `vs_g4Alk4GtKiSA7vFImXqgVauY` | `bec1063d-2ddb-4a0c-8c52-9b8ee742970a` | `industry-energy-32afd` |
+| industry-agribusiness | `vs_4ztFZBpweSlZnLIWt7oh0MKg` | `3bab371c-1ca2-4515-a45c-5e5af456f745` | `industry-agribusiness-07630` |
+| industry-insurance | `vs_4sfPIw5y8aCwChkjtKHozzgl` | `acaf5235-e9d0-4480-9cb9-743c7c29e007` | `industry-insurance-6d4bb` |
+| industry-logistics | `vs_yNyki4jTRR00Lj8RPTnQm11x` | `42965016-5999-4e83-9789-2a0dcd2f35ce` | `industry-logistics-c1287` |
+| industry-education | `vs_ttDkXIn6lzqv14ATXbqodNoL` | `6a9d799a-e7ce-4d0e-bbf5-97e3ae20356d` | `industry-education-36779` |
+
+Principal do supervisor usado nas 10 concessões de RBAC:
+`dde0b40b-73b8-4604-ab39-4d135222294d`.
+
+> ⚠️ **A espera de 90s de propagação foi suficiente nesta execução** — o
+> `montar_supervisor.py` achou as 10 connections e o reprovisionamento passou. Isso
+> **não** prova que 90s é garantia; é o valor que funcionou em uma execução (ajustável
+> por `ESPERA_PROPAGACAO`). Ver a seção de propagação abaixo.
+
+> ⚠️ **Ainda NÃO validado end-to-end:** subir os 10 agentes e ligar as 10 tools no
+> supervisor prova a **topologia**, não o **roteamento**. Só a suíte (`scripts/testar.py`)
+> diz se o supervisor escolhe o especialista certo. Enquanto ela não rodar com os 6 casos
+> revisados, a Fase 2 está *provisionada*, não *aprovada*.
+
+> ⚠️ **Órfãos:** `attach_kb.py` cria um vector store novo a cada execução. Se
+> `provision_all.sh` for re-executado, os vector stores anteriores continuam existindo e
+> continuam custando armazenamento. Comando de listagem no fim do `provision_all.sh`.
 
 ### Fase 3 — Governança
 
