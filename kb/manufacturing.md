@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, data-quality-steward]
 
 # Manufacturing — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e padrões de dados para times atuando
 em manufatura discreta, contínua (processo), montagem e supply chain industrial.
 

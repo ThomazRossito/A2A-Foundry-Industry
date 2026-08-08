@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Energy — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e conformidade para times de dados
 atuando em geradoras, transmissoras, distribuidoras (utilities), oil & gas upstream/downstream,
 biocombustíveis e smart grid.
@@ -140,12 +145,12 @@ PARTITIONED BY (production_date);
 
 | KPI | Fórmula | Threshold Regulatório |
 |-----|---------|----------------------|
-| **SAIDI** (System Average Interruption Duration Index) | Σ(duração × UCs afetadas) / total UCs | Varia por conjunto ANEEL — meta definida por contrato de concessão |
+| **SAIDI** (System Average Interruption Duration Index) | Σ(duração × UCs afetadas) / total UCs | Nomenclatura IEEE. Os indicadores REGULATÓRIOS brasileiros são DEC/FEC: limites por conjunto de UCs, definidos pela ANEEL (PRODIST Módulo 8, Anexo 8.B), revistos nas revisões tarifárias (verificado 2026-08) |
 | **SAIFI** (System Average Interruption Frequency Index) | Σ interrupções × UCs afetadas / total UCs | Varia por conjunto — tipicamente < 10 int/ano em urbano |
-| **DIC** (Duração Interrupção Individual) | Duração total de interrupções por UC | ANEEL RES 956/2021: depende da classe |
-| **FIC** (Frequência Interrupção Individual) | Nº de interrupções por UC no período | ANEEL RES 956/2021 |
-| **Perdas Técnicas** | (Energia injetada - Energia faturada - Perdas Comerciais) / Energia injetada | Meta ANEEL por concessão |
-| **Perdas Não-Técnicas** | Energia faturável não recuperada (furto, fraude, erros) | Benchmark: < 5% em urbano |
+| **DIC** (Duração Interrupção Individual) | Duração total de interrupções por UC | PRODIST Módulo 8 (REN 956/2021 e alterações — REN 1.137/2025, REN 1.148/2026): limites individuais derivam dos limites DEC/FEC do conjunto (Anexo 8.B), NÃO da classe de consumo (verificado 2026-08) |
+| **FIC** (Frequência Interrupção Individual) | Nº de interrupções por UC no período | Idem DIC — PRODIST Módulo 8, Anexo 8.B |
+| **Perdas Técnicas** | (Energia injetada - Energia faturada - Perdas Comerciais) / Energia injetada | Limite regulatório por distribuidora — PRORET Submódulo 2.6 |
+| **Perdas Não-Técnicas** | Energia faturável não recuperada (furto, fraude, erros) | Limite regulatório POR DISTRIBUIDORA (PRORET Submódulo 2.6) — não existe benchmark único; PNT nacional ≈ 7,1% da energia injetada (ANEEL, ano-base 2025). O antigo "< 5% urbano" não tem fonte (verificado 2026-08) |
 
 ### Oil & Gas — Produção
 
@@ -210,6 +215,15 @@ ORDER BY reference_month, total_oil_bbl DESC;
 - Geolocalização de UCs → restrição de acesso por área (não expor em dashboards públicos)
 
 ---
+
+### Normas vigentes (verificado 2026-08)
+
+- **REN 956/2021** — PRODIST (Módulo 8 = qualidade; rev. 14 via REN 1.137/2025 e alterada pela REN 1.148/2026): citar "e alterações"
+- **REN 1.000/2021** — regras de prestação do serviço de distribuição (substituiu a REN 414/2010)
+- **Lei 14.300/2022 + REN 1.059/2023** — marco da micro/minigeração distribuída (MMGD/SCEE)
+- **Mercado livre**: Grupo A liberado desde jan/2024 (Portaria Normativa MME 50/2022); **Lei 15.269/2025** abre a baixa tensão (industriais/comerciais em até 24 meses; residenciais em até 36) — em ago/2026 a abertura BT ainda NÃO está operacional
+- **PRORET Submódulo 2.6** — metodologia dos limites de perdas por distribuidora
+- **Dados abertos ANEEL** — DEC/FEC por conjunto publicados em dadosabertos.aneel.gov.br
 
 ## Anti-Padrões Específicos de Energy
 

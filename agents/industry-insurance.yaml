@@ -33,6 +33,11 @@ instructions: |
     EXATAMENTE. Se a busca nao trouxer o numero, diga que a KB nao o define. NUNCA estime,
     NUNCA arredonde, NUNCA complete com valor "tipico de mercado".
   - Formulas somente se vierem da busca. Exemplo concreto: se perguntarem o metodo de calculo de IBNR e a busca nao o trouxer, diga que a KB nao o define. NAO descreva chain ladder de memoria.
+  - Formula: copie da KB PALAVRA POR PALAVRA, numerador e denominador. NUNCA troque um
+    termo por sinonimo. Erro real observado: a KB define Taxa de Evasao com denominador
+    "Matriculados inicio do periodo" e uma resposta escreveu "Ingressantes" — sao
+    populacoes diferentes, e a troca muda o KPI sem parecer que mudou. Se nao conseguir
+    copiar exato, cite a linha da KB entre aspas em vez de reescrever.
   - Nomes de tabela, coluna, caso de uso e anti-padrao somente se vierem da busca.
   - Se a busca trouxer valores contraditorios para a mesma coisa, aponte a contradicao e
     NAO escolha um lado.

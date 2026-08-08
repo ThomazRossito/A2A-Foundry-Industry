@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Education — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e conformidade para times de dados
 atuando em instituições de ensino superior (IES), redes de educação básica, edtechs,
 plataformas EAD, sistemas de ensino e secretarias de educação.
@@ -47,7 +52,7 @@ plataformas EAD, sistemas de ensino e secretarias de educação.
 
 ```sql
 -- Alunos (ATENÇÃO: dados pessoais de menores e adultos — proteção especial)
--- LGPD + ECA (para menores de 18 anos)
+  -- LGPD art. 14 (menores): consentimento parental para dados de CRIANÇA (§1º); adolescentes: regime próprio (Enunciado ANPD/2023)
 CREATE TABLE silver.dim_students (
   student_id            STRING NOT NULL,        -- ID interno — nunca CPF/RA em claro
   cpf_hash              STRING,                 -- SHA-256 — nunca em claro
@@ -147,10 +152,10 @@ PARTITIONED BY (calculated_date);
 
 | KPI | Fórmula | Benchmark |
 |-----|---------|-----------|
-| **Taxa de Evasão** | Alunos que saíram sem concluir / Matriculados início do período × 100 | IES privada BR: 25-35%/ano (INEP) |
-| **Taxa de Conclusão** | Formados / Ingressantes (mesmo período) × 100 | Meta regulatória: > 50% em 2× o prazo |
+| **Taxa de Evasão** | Alunos que saíram sem concluir / Matriculados início do período × 100 | Estimativa de mercado: 25-35%/ano em IES privadas — SEM fonte oficial; o INEP publica indicadores de fluxo por coorte, não este benchmark anual (verificado 2026-08) |
+| **Taxa de Conclusão** | Formados / Ingressantes (mesmo período) × 100 | Meta de PROJETO: > 50% em 2× o prazo — NÃO existe meta regulatória; o PNE anterior (estratégia 12.3) previa 90% apenas para universidades públicas, como política pública (verificado 2026-08) |
 | **Taxa de Aprovação** | Aprovados / Total cursando × 100 | Meta por disciplina: > 70% |
-| **Taxa de Frequência** | Aulas assistidas / Total de aulas × 100 | Mínimo legal: 75% (LDB) |
+| **Taxa de Frequência** | Aulas assistidas / Total de aulas × 100 | Educação básica: mínimo 75% (LDB, art. 24, VI). Ensino SUPERIOR: a LDB não fixa percentual (art. 47, §3º — frequência obrigatória); o 75% em IES vem de regimento interno (verificado 2026-08) |
 | **NPS Acadêmico** | % Promotores − % Detratores | Excelente: > 50 |
 
 ### Financeiro
@@ -169,7 +174,7 @@ PARTITIONED BY (calculated_date);
 ### LGPD + ECA em Educação
 
 ```sql
--- Alunos menores de 18 anos têm proteção REFORÇADA (LGPD + ECA Art. 17)
+-- Menores têm proteção reforçada. Consentimento parental para dados de CRIANÇA: LGPD art. 14, §1º — NÃO o ECA art. 17, que trata do direito ao respeito, não de dados. Adolescentes: Enunciado ANPD/2023 (verificado 2026-08)
 -- Consentimento deve ser dos responsáveis legais, não do menor
 -- Dados de desempenho de menores → finalidade pedagógica exclusiva
 
@@ -186,12 +191,20 @@ WHERE is_minor = TRUE
 
 ### Regulação Setorial
 
-- **LDB** (Lei 9.394/96) — frequência mínima 75%, carga horária mínima por curso
+- **LDB** (Lei 9.394/96) — frequência mínima de 75% na educação básica (art. 24, VI); no ensino superior não há percentual legal (art. 47, §3º); carga horária mínima por curso
 - **MEC/INEP** — Censo da Educação Superior (CES) obrigatório anualmente
 - **ENADE** — avaliação trienal por curso (obrigatória para IES)
 - **PROUNI/FIES** — prestação de contas ao MEC sobre bolsistas
 
 ---
+
+### Normas vigentes (verificado 2026-08)
+
+- **Lei 15.388/2026** — NOVO PNE (decênio 2026-2036), sancionado em abril/2026; metas do PNE anterior (Lei 13.005/2014) estão superadas
+- **Decreto 12.456/2025** — novo marco da EAD; REVOGOU o Decreto 9.057/2017; formatos presencial/semipresencial/EAD, polos, avaliação
+- **Decreto 6.425/2008** — resposta ao Censo (INEP) é OBRIGATÓRIA para instituições públicas e privadas
+- **Lei 10.861/2004 (SINAES) + Decreto 9.235/2017** — o arcabouço real de obrigações regulatórias de IES perante o MEC
+- **LGPD art. 14 + Enunciado ANPD/2023** — dados de crianças e adolescentes: consentimento parental (§1º) vale para CRIANÇAS; outras bases legais admitidas no melhor interesse
 
 ## Anti-Padrões Específicos de Education
 

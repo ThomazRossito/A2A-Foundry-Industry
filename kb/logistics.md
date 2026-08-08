@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Logistics & Transportation — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e conformidade para times de dados
 atuando em transportadoras, operadores logísticos (3PL/4PL), e-commerce fulfillment,
 last-mile delivery, armazéns, portos e cadeias de suprimentos.
@@ -162,7 +167,7 @@ PARTITIONED BY (metric_date);
 | **Custo por Entrega** | Custo total de frete / Nº de entregas | Monitorar por modal e região |
 | **Custo por km** | Custo operacional / km rodado | Rodoviário: R$ 4,5–6,5/km (depende do veículo) |
 | **Taxa de Ocupação (Load Factor)** | Peso/volume transportado / Capacidade × 100 | Meta: > 80% de ocupação |
-| **Carbon per Shipment** | kg CO₂e / remessa | Meta ESG: reduzir 20%/ano |
+| **Carbon per Shipment** | kg CO₂e / remessa | Meta de PROJETO (ESG interna): reduzir 20%/ano — sem exigência legal. Fatores de emissão citáveis: Programa Brasileiro GHG Protocol (FGV) e MCTI/SIRENE — declarar fonte e versão dos emission_factors (verificado 2026-08) |
 
 ### Armazém
 
@@ -186,12 +191,20 @@ PARTITIONED BY (metric_date);
 
 ### Regulação Setorial (Brasil)
 
-- **ANTT** — Agência Nacional de Transporte Terrestre: registros obrigatórios de transportadoras
-- **CTe** (Conhecimento de Transporte Eletrônico) — documento fiscal obrigatório por remessa
-- **MDF-e** (Manifesto de Documentos Fiscais) — declaração de carga por veículo por viagem
-- **Cabotagem**: normas ANTAQ para transporte aquaviário de carga
+- **ANTT/RNTRC** — registro obrigatório de transportadoras (Lei 11.442/2007; Resolução ANTT 5.982/2022, que REVOGOU a 4.799/2015; validade do registro indeterminada) (verificado 2026-08)
+- **CT-e** (mod. 57) — documento fiscal por PRESTAÇÃO de serviço de transporte, não "por remessa" (Ajuste SINIEF 09/2007); leiaute 4.00 é o único vigente desde 31/01/2024 (verificado 2026-08)
+- **MDF-e** — manifesto que vincula CT-e/NF-e ao veículo por viagem, com encerramento no destino (Ajuste SINIEF 21/2010; leiaute 3.00). CIOT passa a constar no MDF-e: Ajuste SINIEF 03/2026 (verificado 2026-08)
+- **Cabotagem** — Lei 14.301/2022 (BR do Mar) + Decreto 12.555/2025; ANTAQ: Res. 133/2025 (outorga/EBIN), 129/2025 (afretamento), 62/2021 (usuários) (verificado 2026-08)
 
 ---
+
+### Normas vigentes (verificado 2026-08)
+
+- **Lei 13.703/2018** — piso mínimo de frete; metodologia: Res. ANTT 5.867/2020 alterada pela 6.076/2026; TABELAS mudam semestralmente (última: Res. 6.084/2026, jul/2026) — registrar a versão da tabela usada
+- **MP 1.343/2026** — CIOT obrigatório antes do frete e bloqueio de contratação abaixo do piso; multas de R$ 1–10 mi e suspensão progressiva do RNTRC — impacto direto em pipelines de frete
+- **DT-e** (Lei 14.206/2021) — documento eletrônico de transporte, EM IMPLANTAÇÃO por cronograma; obrigatoriedade geral não confirmada até ago/2026
+- **Res. ANTT 5.998/2022** — transporte rodoviário de produtos perigosos (ONU, ficha de emergência)
+- **LGPD** — telemetria, jornada e cadastro de motorista são dados pessoais: base legal e retenção devem estar definidas
 
 ## Anti-Padrões Específicos de Logistics
 

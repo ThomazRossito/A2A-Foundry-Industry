@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -40,12 +41,47 @@ from pathlib import Path
 import yaml
 from azure.ai.projects import AIProjectClient
 from azure.ai.projects.models import (A2APreviewTool, FileSearchTool,
-                                      PromptAgentDefinition, RaiConfig)
+                                      PromptAgentDefinition, RaiConfig, Reasoning)
 from azure.identity import DefaultAzureCredential
 
-# Limite documentado de `instructions` na referencia REST de prompt agent.
-# Ver ADR-006. Se a plataforma aceitar mais, ajuste aqui e registre no ADR.
-MAX_INSTRUCTIONS = 4096
+# Teto de `instructions`.
+#
+# CORRECAO 08/08/2026: o valor anterior (4096) era uma AFIRMACAO MINHA NAO VERIFICADA
+# (achado #16 do projeto). `scripts/testar_limite_instructions.py` testou 4096, 4200,
+# 5000, 6000, 8000, 12000, 16000, 24000, 32000 e 65536 num agente descartavel:
+# TODOS ACEITOS, nenhuma recusa. O teto real e >= 65536, ou nao existe.
+#
+# Consequencia: as instrucoes dos 11 agentes foram cortadas a sessao inteira para
+# respeitar um limite inexistente. O supervisor chegou a 4084/4096 e por isso NAO
+# cabia a lista dos especialistas — que era exatamente o que faltava para ele nao
+# responder "fora-de-escopo" a "quem sao seus especialistas".
+#
+# 32768 e um teto conservador dentro da faixa provada, nao um limite da plataforma.
+MAX_INSTRUCTIONS = 32768
+
+# Deteccao de KB colada dentro de `instructions`.
+#
+# A primeira versao disto era um aviso por TAMANHO (8000 chars). Era ruim: o supervisor
+# legitimo tem 8337 chars e o aviso disparava toda vez — alarme falso, que e o que faz
+# aviso parar de ser lido. E nao separava nada: as KBs deste projeto tem 9,4-12,7 KB,
+# perto demais de uma instrucao grande legitima para o tamanho decidir.
+#
+# Conteudo separa melhor. Estes padroes aparecem nas KBs e nao numa instrucao:
+# DDL, tabela markdown, tipos de coluna, front-matter YAML.
+SINAIS_DE_KB = (
+    (re.compile(r"CREATE\s+TABLE", re.I), "DDL (CREATE TABLE)"),
+    (re.compile(r"^\s*\|\s*-{3,}", re.M), "separador de tabela markdown"),
+    (re.compile(r"\b(STRING|DECIMAL\(|TIMESTAMP|BOOLEAN)\b,"), "tipos de coluna"),
+    (re.compile(r"^---\s*$", re.M), "front-matter YAML"),
+)
+LIMITE_ABSURDO = 20000   # acima disso, avisa por tamanho tambem
+
+# Valores aceitos por `Reasoning.effort`, lidos da anotacao do proprio SDK
+# (scripts/probe_reasoning.py):
+#   Optional[Literal['none','minimal','low','medium','high','xhigh']]
+# NOTA: o portal mostra apenas high|medium|low|minimal. 'none' e 'xhigh' existem no
+# SDK e nao aparecem na UI — divergencia registrada, nao testada.
+EFFORTS_VALIDOS = ("none", "minimal", "low", "medium", "high", "xhigh")
 
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 
@@ -79,6 +115,12 @@ def validar(nome: str, spec: dict) -> str:
             f"L1-L4 e contrato de saida."
         )
     print(f"   instructions: {tamanho}/{MAX_INSTRUCTIONS} chars")
+    achados = [rotulo for padrao, rotulo in SINAIS_DE_KB if padrao.search(instrucoes)]
+    if achados:
+        print(f"   AVISO: a instrucao contem {', '.join(achados)} — isso parece KB colada.")
+        print(f"          KB vai para File Search (attach_kb.py), nao para instructions.")
+    if tamanho > LIMITE_ABSURDO:
+        print(f"   AVISO: {tamanho} chars e muito para instrucao. Confira o conteudo.")
 
     return instrucoes
 
@@ -243,7 +285,9 @@ def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool,
         gr = spec.get("guardrail")
         gr_txt = (f", rai_policy_name={gr!r}" if gr and not sem_guardrail
                   else ", sem rai_config" if gr else "")
-        print(f"   [dry-run] model={spec['model']}, tools={len(tools)}{gr_txt}")
+        re_txt = (f", reasoning.effort={spec['reasoning_effort']!r}"
+                  if spec.get("reasoning_effort") else "")
+        print(f"   [dry-run] model={spec['model']}, tools={len(tools)}{gr_txt}{re_txt}")
         return
 
     extras = {}
@@ -266,6 +310,19 @@ def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool,
     #
     # A politica precisa EXISTIR antes (crie os guardrails no portal). Se nao existir,
     # espere erro do servico — use --sem-guardrail para provisionar sem ela.
+    # reasoning effort. A forma correta e o OBJETO tipado, nao string:
+    # `PromptAgentDefinition.reasoning` e Optional['_models.Reasoning'] e o wire sai
+    # como {"effort": "..."}. Passar string crua tambem e ACEITO pelo SDK (os modelos
+    # sao dicts permissivos) e sairia como "reasoning": "medium" — forma errada que
+    # passa silenciosamente. Provado em scripts/probe_reasoning.py.
+    esforco = spec.get("reasoning_effort")
+    if esforco:
+        if esforco not in EFFORTS_VALIDOS:
+            sys.exit(f"ERRO [{nome}]: reasoning_effort={esforco!r} invalido. "
+                     f"Aceitos: {EFFORTS_VALIDOS}")
+        extras["reasoning"] = Reasoning(effort=esforco)
+        print(f"   reasoning <- effort={esforco!r}")
+
     if spec.get("guardrail") and not sem_guardrail:
         extras["rai_config"] = RaiConfig(rai_policy_name=spec["guardrail"])
         print(f"   rai_config <- rai_policy_name={spec['guardrail']!r}")
@@ -288,6 +345,17 @@ def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool,
     # NAO afirmar "aplicado" — LER DE VOLTA. Foi exatamente por afirmar estado sem
     # verificar que a versao anterior deste projeto documentou governanca que nao
     # existia. A resposta do create_version ja traz a definicao gravada.
+    if spec.get("reasoning_effort"):
+        try:
+            lido = (agente.definition or {}).get("reasoning")
+        except Exception:
+            lido = None
+        if lido:
+            print(f"   CONFIRMADO na resposta: reasoning={dict(lido)}")
+        else:
+            print(f"   ALERTA: reasoning NAO veio na resposta. Confira no portal:")
+            print(f"           Playground > Parameters > Reasoning Effort.")
+
     if spec.get("guardrail") and not sem_guardrail:
         gravado = None
         try:

@@ -54,12 +54,23 @@ SUITE = [
      "DECISAO DE DESIGN EM ABERTO: delegar a education (contexto resolve) ou perguntar "
      "(regra diz que 'inadimplencia' e ambiguo). Nao ha veredito automatico",
      {"indeterminado": True}),
+    ("Auto-descricao — o supervisor conhece os especialistas?",
+     "me explique o que cada agente e e o que faz",
+     "rotulo 'Vertical: capacidades', SEM chamar tool, citando os 10 especialistas pelo nome",
+     # Exige o nome CURTO da vertical, nao o nome do agente. Motivo: a instrucao do
+     # supervisor manda usar "financial-services" e nao "industry-financial-services"
+     # no rotulo, e ele generalizou isso para o roster — corretamente. A versao
+     # anterior deste criterio exigia o prefixo e reprovava uma resposta impecavel.
+     # Terceira vez que um criterio literal meu foi o defeito, nao o agente.
+     {"proibe_a2a": True, "exige_todos": ["capacidades", "financial-services",
+      "healthcare", "manufacturing", "education", "logistics", "retail", "energy",
+      "telecom", "insurance", "agribusiness"]}),
     ("Vazamento de envelope e de marcador de citacao",
      "quais os anti-padroes de rastreabilidade em logistics",
      "texto limpo; SEM envelope de protocolo e SEM marcador de annotation do File Search",
+     # a checagem de vazamento agora e UNIVERSAL (VAZAMENTOS_PROIBIDOS), nao por caso
      {"exige_a2a": "logistics", "exige_fonte": "kb/logistics.md",
-      "exige_lastro": True,
-      "proibe": ["{", "}", '"parts"', "filecite", "\u3010", "\u3011"]}),
+      "exige_lastro": True}),
 ]
 
 
@@ -162,16 +173,57 @@ def perguntar(client, agente: str, texto: str) -> dict:
     }
 
 
+# Vazamentos que NUNCA sao aceitaveis, em resposta nenhuma. Ficam fora do dicionario
+# por caso de proposito: quando isto era um `proibe` por caso, so o caso 7 checava, e o
+# caso 1 PASSOU com "fileciteturn0file2" no meio do texto entregue. Suite verde por
+# falta de cobertura e pior que suite vermelha.
+# QUARTA correcao do mesmo erro meu: proibir o CARACTERE em vez da COISA.
+# `{` e `}` foram banidos para pegar o envelope A2A: {"parts":[{"kind":"text",...}]}
+# Mas chave tambem e notacao legitima para enumerar campos — o especialista escreveu
+# `linha por contrato {contract_id, customer_id, days_past_due, ...}` e REPROVOU.
+# O envelope e sempre JSON, entao a assinatura e `{"` (chave seguida de aspas) e as
+# chaves do protocolo. Notacao de conjunto nunca produz `{"`.
+VAZAMENTOS_PROIBIDOS = ('{"', '"parts"', '"kind"', "jsonrpc", "filecite",
+                        "\u3010", "\u3011")
+
+
 def avaliar(res: dict, inv: dict) -> list:
     """Aplica as invariantes. Devolve lista de violacoes (vazia = passou)."""
-    if inv.get("indeterminado"):
-        return []
     falhas = []
     trilha, texto = res["trilha"], res["texto"]
     chamou_a2a = "a2a_preview_call" in trilha
+    linhas_txt = [l for l in texto.strip().splitlines() if l.strip()]
+
+    # ---- INVARIANTES UNIVERSAIS: valem para TODA resposta, inclusive indeterminada ----
+    for vaz in VAZAMENTOS_PROIBIDOS:
+        if vaz in texto:
+            falhas.append(f"VAZAMENTO (universal): {vaz!r} no texto entregue")
+    if texto.strip().startswith("{"):
+        falhas.append("VAZAMENTO (universal): resposta comeca com '{' — envelope cru")
 
     if not res["houve_resposta"]:
         falhas.append("run nao produziu mensagem final (placeholder ou vazio)")
+
+    # O contrato da primeira linha e invariante do sistema, nao expectativa de um caso:
+    # rotulo de vertical concreta EXIGE ter delegado e EXIGE a linha Fonte. Isto estava
+    # so no nivel por-caso, e por isso o caso 5 (marcado indeterminado) passou tendo
+    # devolvido APENAS "Vertical: education -- confianca: alta", sem delegar e sem
+    # conteudo nenhum. Resposta degenerada aprovada por isencao de escopo.
+    import re as _re
+    _m = _re.match(r"Vertical:\s*(?:industry-)?([a-z\-]+)", linhas_txt[0] if linhas_txt else "")
+    _rotulo = _m.group(1) if _m else None
+    if _rotulo and _rotulo not in ("ambigua", "fora-de-escopo", "indisponivel", "capacidades"):
+        if not chamou_a2a:
+            falhas.append(f"CONTRATO (universal): rotulo '{_rotulo}' sem a2a_preview_call")
+        if f"Fonte: kb/{_rotulo}.md" not in texto:
+            falhas.append(f"CONTRATO (universal): rotulo '{_rotulo}' sem "
+                          f"'Fonte: kb/{_rotulo}.md'")
+        if len(linhas_txt) < 2:
+            falhas.append(f"CONTRATO (universal): rotulo '{_rotulo}' sem conteudo algum "
+                          f"({len(linhas_txt)} linha)")
+
+    if inv.get("indeterminado"):
+        return falhas
 
     alvo = inv.get("exige_a2a")
     if alvo:
@@ -249,7 +301,17 @@ def main() -> None:
         print(textwrap.indent(res["texto"].strip(), "    "))
         falhas = avaliar(res, inv)
         if inv.get("indeterminado"):
-            print("    VEREDITO: INDETERMINADO (decisao de design em aberto — auditar a mao)")
+            # As violacoes UNIVERSAIS valem mesmo aqui. A versao anterior calculava e
+            # DESCARTAVA: o caso 5 desta rodada tinha 4 ocorrencias de "filecite" e a
+            # suite imprimiu 6/6. Escrever a checagem e nao ligar na saida e o mesmo
+            # que nao ter checagem — e foi a terceira vez que fiz isso hoje.
+            if falhas:
+                reprovados.append(nome)
+                print("    VEREDITO: REPROVOU (violacao universal, apesar de indeterminado)")
+                for f in falhas:
+                    print(f"      - {f}")
+            else:
+                print("    VEREDITO: INDETERMINADO (decisao de design em aberto — auditar a mao)")
         elif falhas:
             reprovados.append(nome)
             print("    VEREDITO: REPROVOU")
@@ -260,10 +322,12 @@ def main() -> None:
         print()
 
     print("=" * 72)
-    total_auto = sum(1 for c in SUITE if not c[3].get("indeterminado"))
+    # o indeterminado entra no denominador: ele NAO tem veredito de roteamento, mas
+    # esta sujeito as violacoes universais e pode reprovar por elas.
+    total_auto = len(SUITE)
     ok = total_auto - len(reprovados) - len(erros)
     print(f"RESUMO: {ok}/{total_auto} passaram | {len(reprovados)} reprovaram "
-          f"| {len(erros)} erro de chamada  (1 caso indeterminado por design)")
+          f"| {len(erros)} erro de chamada  (1 caso sem veredito de roteamento, mas sujeito a violacao universal)")
     for nome in reprovados:
         print(f"  REPROVOU: {nome}")
     for nome in erros:

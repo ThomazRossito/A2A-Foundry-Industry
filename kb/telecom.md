@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Telecom — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e conformidade para times de dados
 atuando em operadoras móveis (MNO), operadoras virtuais (MVNO), provedores de internet
 (ISP), empresas de telecomunicações fixas e corporativas.
@@ -165,9 +170,9 @@ PARTITIONED BY (billing_cycle_start);
 
 | KPI | Fórmula | Threshold |
 |-----|---------|-----------|
-| **CSSR** (Call Setup Success Rate) | Chamadas estabelecidas / Tentativas × 100 | > 98.5% (ANATEL padrão) |
-| **CDR** (Call Drop Rate) | Chamadas caídas / Estabelecidas × 100 | < 1.5% (ANATEL) |
-| **HOSR** (Handover Success Rate) | Handovers bem-sucedidos / Tentativas × 100 | > 97% |
+| **CSSR** (Call Setup Success Rate) | Chamadas estabelecidas / Tentativas × 100 | ANATEL (RQUAL, Res. 717/2019 — IND1): valores de referência 95% (inferior) e 99% (superior) no DVR (RI 444/2025); NÃO há meta única — o antigo "98,5%" não consta em norma (verificado 2026-08) |
+| **CDR** (Call Drop Rate) | Chamadas caídas / Estabelecidas × 100 | ANATEL (RQUAL — IND2): referências 3% (inferior) e 1% (superior) no DVR (RI 444/2025); o antigo "1,5%" não consta em norma (verificado 2026-08) |
+| **HOSR** (Handover Success Rate) | Handovers bem-sucedidos / Tentativas × 100 | Benchmark de ENGENHARIA: >= 97% — NÃO é indicador ANATEL (o RQUAL não prevê handover) (verificado 2026-08) |
 | **Network Availability** | Horas de operação / Horas totais × 100 | > 99.9% (SLA) |
 | **Data Throughput** | Mbps médio por usuário ativo | 4G: > 30 Mbps DL; 5G: > 200 Mbps DL |
 | **Latency** | RTT médio em ms | 4G: < 50ms; 5G: < 10ms |
@@ -192,7 +197,7 @@ PARTITIONED BY (billing_cycle_start);
 -- NUNCA expor MSISDN, IMSI ou número chamado/chamador em claro
 
 -- Política de retenção obrigatória
--- ANATEL: CDR retidos por mínimo 5 anos (Res. 614/2013)
+-- Retenção de registros de chamadas: 5 anos — base VIGENTE: Lei 12.850/2013, art. 17; sede regulamentar atual: RGST (Res. 777/2025), que REVOGOU as Res. 477/2007 e 614/2013 em out/2025 (verificado 2026-08)
 -- LGPD: prazo mínimo legal prevalece sobre preferência do titular
 
 -- Verificação: garantir pseudonimização em Silver/Gold
@@ -220,7 +225,7 @@ SELECT
   AVG(k.call_drop_rate) AS avg_cdr,
   AVG(k.handover_success_rate) AS avg_hosr,
   AVG(k.data_throughput_mbps) AS avg_throughput_mbps,
-  -- ANATEL thresholds: CSSR >= 98.5%, CDR <= 1.5%, HOSR >= 97%
+-- ANATEL (RQUAL + DVR RI 444/2025): IND1 conexão 95/99%; IND2 queda 3/1%. NÃO hardcodar: o DVR é atualizado periodicamente — citar o DVR, não o número
   SUM(CASE WHEN k.call_setup_success_rate < 0.985 THEN 1 ELSE 0 END) AS cssr_violations,
   SUM(CASE WHEN k.call_drop_rate > 0.015 THEN 1 ELSE 0 END) AS cdr_violations
 FROM gold.fct_cell_kpis k
@@ -233,6 +238,15 @@ ORDER BY avg_cdr DESC;
 
 ---
 
+### Normas vigentes (verificado 2026-08)
+
+- **RQUAL** (Res. 717/2019, alterada por 761/2023, 765/2023, 777/2025, 779/2025) — framework de qualidade; revogou RGQ-SMP 575/2011, RGQ-SCM 574/2011 e RGQ-STFC 605/2012
+- **DVR** (Resolução Interna 444/2025) — onde vivem os valores de referência dos indicadores; atualizado periodicamente
+- **RGST** (Res. 777/2025) — consolidou 34 resoluções (477/2007, 614/2013, 738/2020...); nova sede das obrigações de redes e guarda de dados
+- **RGC** (Res. 765/2023) — direitos do consumidor; REVOGOU a Res. 632/2014
+- **Lei 12.850/2013, art. 17** — 5 anos de registros de chamadas (base legal estável); **Marco Civil** (Lei 12.965/2014): conexão 1 ano (art. 13), aplicações 6 meses (art. 15)
+- **R-Ciber** (Res. 740/2020) — segurança cibernética obrigatória para prestadoras
+
 ## Anti-Padrões Específicos de Telecom
 
 | ID | Anti-padrão | Risco |
@@ -243,4 +257,4 @@ ORDER BY avg_cdr DESC;
 | TC04 | ARPU calculado dividindo por assinantes totais (incluindo inativos) | HIGH — subestima ARPU real; usar apenas assinantes ativos com faturamento no período |
 | TC05 | Sessões de dados não deduplicadas antes de calcular throughput | HIGH — sessões TCP/IP geram múltiplos registros; deduplicate por session_id |
 | TC06 | KPIs de rede calculados por célula sem distinção por tecnologia (2G/3G/4G/5G) | MEDIUM — métricas incomparáveis; sempre filtrar ou agregar por technology |
-| TC07 | Retenção de CDR inferior a 5 anos | HIGH — violação Res. ANATEL 614/2013; risco de multa e cassação de licença |
+| TC07 | Retenção de registros de chamadas inferior a 5 anos | HIGH — violação da Lei 12.850/2013, art. 17 (a antiga Res. 614/2013, além de ser do SCM e prever 1 ano de registros de CONEXÃO, foi revogada pelo RGST — Res. 777/2025) (verificado 2026-08) |

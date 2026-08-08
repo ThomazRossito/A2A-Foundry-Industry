@@ -57,7 +57,13 @@ VERTICAIS = (
     "telecom", "agribusiness", "insurance", "logistics", "education",
 )
 
-SEM_DELEGACAO = ("ambigua", "fora-de-escopo", "indisponivel")
+# Rotulos que exigem NAO ter chamado ferramenta.
+SEM_DELEGACAO = ("ambigua", "fora-de-escopo", "indisponivel", "capacidades")
+
+# `capacidades` responde "quem voce e / quais sao seus especialistas" e precisa listar
+# os 10 — logo NAO cabe no limite curto dos outros rotulos sem delegacao. Sem esta
+# excecao a guarda rejeitaria justamente a resposta que faltava ao supervisor.
+LINHAS_MAX = {"ambigua": 6, "fora-de-escopo": 6, "indisponivel": 4, "capacidades": 40}
 
 # Textos que o servico devolve NO LUGAR da resposta quando o run terminou depois da
 # tool call sem compor a mensagem final.
@@ -200,6 +206,14 @@ def verificar_contrato(texto: str, trilha: str, estrito: bool = False) -> tuple:
     delegou = "a2a_preview_call" in trilha
 
     m = re.match(r"Vertical:\s*([a-z\-]+)", primeira)
+    if m and m.group(1).startswith("industry-"):
+        # Depois que o roster entrou nas instrucoes (com os nomes de agente
+        # `industry-*`), o supervisor passou a usar as duas grafias no rotulo:
+        # "financial-services" e "industry-financial-services". As duas sao a mesma
+        # coisa; rejeitar a segunda seria rejeitar resposta boa por forma. Normaliza.
+        avisos.append(f"rotulo veio com prefixo de agente ({m.group(1)}) — "
+                      f"normalizado para {m.group(1)[len('industry-'):]}")
+        m = re.match(r"Vertical:\s*industry-([a-z\-]+)", primeira)
     if not m:
         falhas.append(f"primeira linha fora do contrato: {primeira[:80]!r}")
         # sem prefixo nao da para decidir o resto; a violacao mais grave e conteudo
@@ -213,8 +227,16 @@ def verificar_contrato(texto: str, trilha: str, estrito: bool = False) -> tuple:
     if rotulo in SEM_DELEGACAO:
         if delegou:
             falhas.append(f"rotulo '{rotulo}' exige NAO delegar, mas a trilha delegou")
-        if len(linhas) > 6:
-            falhas.append(f"rotulo '{rotulo}' deveria ser curto, veio com {len(linhas)} linhas")
+        teto = LINHAS_MAX.get(rotulo, 6)
+        if len(linhas) > teto:
+            falhas.append(f"rotulo '{rotulo}' passou de {teto} linhas (veio {len(linhas)})")
+        if rotulo == "capacidades":
+            # o valor da resposta de capacidades e citar os especialistas pelo nome.
+            # Sem isso, e generica — foi a reclamacao original.
+            citados = [v for v in VERTICAIS if v in texto]
+            if len(citados) < 8:
+                falhas.append(f"capacidades citou so {len(citados)}/10 especialistas: "
+                              f"{citados}")
         return falhas, avisos
 
     if rotulo not in VERTICAIS:

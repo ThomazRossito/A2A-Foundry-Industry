@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Agribusiness — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e conformidade para times de dados
 atuando em produtores rurais, tradings, cooperativas, agroindústrias, insumos agrícolas
 e cadeias de rastreabilidade (café, soja, carne, algodão, cana-de-açúcar).
@@ -122,7 +127,7 @@ CREATE TABLE gold.fct_traceability_batches (
   destination_country STRING,
   certification_codes ARRAY<STRING>,           -- RTRS | ProTerra | ISCC | Rainforest | Fairtrade
   carbon_footprint_kg_ton DECIMAL(10,4),       -- kg CO₂e por tonelada (se certificado)
-  deforestation_free BOOLEAN,                  -- compliance com EU Deforestation Regulation
+  deforestation_free BOOLEAN,                  -- conformidade EUDR (Reg. UE 2023/1115; corte 31/12/2020)
   PRIMARY KEY (batch_id)
 );
 ```
@@ -159,10 +164,11 @@ CREATE TABLE gold.fct_traceability_batches (
 - Operadores de máquinas (hora, localização GPS) → dado pessoal → pseudonimizar
 
 ### Regulação Setorial
-- **SNCR** (Sistema Nacional de Crédito Rural) — rastreabilidade de uso de crédito agrícola
-- **CAR/SICAR** — registro obrigatório de propriedades rurais; dado público
-- **EU Deforestation Regulation (EUDR)** — exportadores para UE devem comprovar origem sem desmatamento pós-2020
-- **RTRS/ProTerra** — certificação de soja responsável para mercado europeu
+- **Crédito rural** — arcabouço institucional: SNCR (Lei 4.829/1965); quem REGISTRA as operações é o Sicor/BCB (microdados públicos desde 2013). Crédito condicionado à inscrição no CAR desde 31/12/2017 (Lei 12.651, art. 78-A) (verificado 2026-08)
+- **CAR/SICAR** — registro público eletrônico obrigatório (Lei 12.651/2012, art. 29); perímetro e status são públicos (Decreto 7.830/2012, art. 3º, V); dados pessoais do proprietário NÃO são de transparência ativa; registro é declaratório (verificado 2026-08)
+- **EUDR (Reg. UE 2023/1115)** — corte de desmatamento: 31/12/2020. Aplicação ADIADA duas vezes; vigente: 30/12/2026 (grandes/médios e downstream) e 30/06/2027 (micro/pequenas) — Reg. UE 2025/2650. Exige geolocalização de TODAS as parcelas (art. 9(1)(d)); polígono obrigatório acima de 4 ha (art. 2(28)) (verificado 2026-08)
+- **Moratória da Soja** — pacto PRIVADO (corte jul/2008, bioma Amazônia — cutoff DIFERENTE do EUDR): vigente em 2026-08, mas sob litígio: medida preventiva do CADE com efeitos desde 01/01/2026, ADIs 7774/7775 no STF (julgamento pautado ago/2026), Lei MT 12.709/2024 em vigor. Status VOLÁTIL — revalidar antes de citar (verificado 2026-08)
+- **RTRS/ProTerra** — certificação PRIVADA de soja responsável; no EUDR, certificação é apenas informação complementar da avaliação de risco (art. 10(2)(n)) — NÃO substitui a due diligence (verificado 2026-08)
 
 ---
 
@@ -173,6 +179,6 @@ CREATE TABLE gold.fct_traceability_batches (
 | AG01 | Coordenadas GPS de propriedades sem anonimização em Gold | HIGH — dado pessoal + risco de grilagem/invasão |
 | AG02 | Produtividade calculada com área plantada ≠ área colhida | HIGH — áreas replantadas distorcem o yield |
 | AG03 | Preço de commodity sem especificar mercado (CBOT vs local) e câmbio do dia | HIGH — comparações incorretas entre safras |
-| AG04 | Rastreabilidade sem vínculo ao lote colhido (apenas fazenda → exportação) | CRITICAL — invalida certificações RTRS/EUDR |
+| AG04 | Rastreabilidade sem vínculo ao lote/talhão colhido | CRITICAL — sem geolocalização por parcela o produto é NÃO CONFORME no EUDR (arts. 4, 8 e 9); certificação não compensa (verificado 2026-08) |
 | AG05 | Carbon footprint calculado sem separar emissões de escopo 1, 2 e 3 | MEDIUM — relatório ESG incorreto |
 | AG06 | Dados de safra sem separação por tipo (1ª safra vs 2ª safra/safrinha) | MEDIUM — produtividades incomparáveis |

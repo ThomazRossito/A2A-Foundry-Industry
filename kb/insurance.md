@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Insurance (Seguros) — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e conformidade para times de dados
 atuando em seguradoras (vida, auto, patrimonial, saúde, agrícola), resseguradoras,
 corretoras e plataformas insurtech.
@@ -139,7 +144,7 @@ PARTITIONED BY (DATE(trip_start_ts));
 
 | KPI | Fórmula | Threshold |
 |-----|---------|-----------|
-| **Sinistralidade** (Loss Ratio) | Sinistros pagos / Prêmios ganhos × 100 | SUSEP alerta: > 70% (varia por produto) |
+| **Sinistralidade** (Loss Ratio) | Sinistros OCORRIDOS / Prêmios ganhos × 100 | Referência de mercado: ~70% (varia por produto). A SUSEP NÃO publica gatilho normativo (verificado 2026-08) |
 | **Combined Ratio** | (Sinistros + Despesas) / Prêmios ganhos × 100 | < 100% = resultado técnico positivo |
 | **Expense Ratio** | Despesas operacionais / Prêmios emitidos × 100 | Benchmark: 25-35% |
 | **IBNR Adequacy** | Reserva IBNR / Sinistros esperados não reportados | Monitorar desvio vs. realizado |
@@ -172,7 +177,7 @@ FROM silver.fct_claims
 WHERE LENGTH(claimant_id_hash) != 64  -- SHA-256 = 64 chars hex
    OR claimant_id_hash IS NULL;
 
--- Prazo de retenção: SUSEP exige manutenção de dados por mínimo 5 anos após encerramento
+-- Guarda de documentos: Circular SUSEP 605/2020, art. 3º — mínimo 5 anos contados do ato, do fim de vigência OU da extinção das obrigações, o que for MAIS RECENTE (verificado 2026-08)
 -- Apólices vida: prazo especial (pode ser indefinido por natureza do risco)
 ```
 
@@ -193,10 +198,19 @@ FROM gold.fct_development_triangles
 WHERE development_year = (SELECT MAX(development_year) FROM gold.fct_development_triangles)
 GROUP BY product_code, accident_year
 ORDER BY accident_year DESC, product_code;
--- Adequacy < 80% → alerta para revisão atuarial
+-- Adequacy < 80% → regra INTERNA de projeto, sem base normativa. O TAP (Circ. SUSEP 648/2021, arts. 36-48) é binário: insuficiência → constituição integral de PCC (verificado 2026-08)
 ```
 
 ---
+
+### Normas vigentes (verificado 2026-08)
+
+- **Lei 15.040/2024** — novo marco do contrato de seguro, em vigor desde dez/2025: prazos de regulação de sinistro, prescrição (arts. 126-127)
+- **Res. CNSP 432/2021 + Circular SUSEP 648/2021** — provisões técnicas e TAP vigentes
+- **SRO** (Res. CNSP 383/2020; Circulares SUSEP 710–715/2024, leiaute V3) — registro obrigatório de operações
+- **Open Insurance** — Res. CNSP 415/2021 + Circular SUSEP 635/2021
+- **Circular SUSEP 612/2020** — PLD/FT (revogou a 445/2012); **Circular SUSEP 638/2021** — segurança cibernética
+- **IFRS 17** — SEM norma SUSEP de internalização até ago/2026; contabilidade estatutária segue padrão SUSEP
 
 ## Anti-Padrões Específicos de Insurance
 

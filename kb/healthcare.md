@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Healthcare — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e conformidade para times de dados
 atuando em hospitais, clínicas, planos de saúde (operadoras), laboratórios e pharma.
 
@@ -154,7 +159,7 @@ PARTITIONED BY (service_date);
 
 | KPI | Fórmula | Benchmark |
 |-----|---------|-----------|
-| **Taxa de Readmissão 30d** | Readmissões em 30d / Altas × 100 | Meta: < 15% (ACSA) |
+| **Taxa de Readmissão 30d** | Readmissões em 30d / Altas × 100 | Meta de projeto: < 15% — sem fonte normativa (a sigla "ACSA" antes citada não corresponde a entidade identificável) (verificado 2026-08) |
 | **ALOS** (Average Length of Stay) | Soma de `length_of_stay_days` / Nº de internações | Varia por DRG — comparar vs grupo |
 | **Taxa de Ocupação** | Leitos ocupados / Leitos disponíveis × 100 | Eficiência: 75–85% |
 | **Taxa de Mortalidade Hospitalar** | Óbitos / Total internações × 100 | Benchmark por DRG (risk-adjusted) |
@@ -165,8 +170,8 @@ PARTITIONED BY (service_date);
 
 | KPI | Fórmula | Threshold |
 |-----|---------|-----------|
-| **Sinistralidade** | Sinistros Pagos / Receita de Mensalidades | ANS alerta: > 75% |
-| **Tempo de Autorização** | `auth_end_ts - auth_request_ts` | ANS: urgência < 2h; eletivo < 5 dias |
+| **Sinistralidade** | Sinistros Pagos / Receita de Mensalidades | Referência contratual/de mercado: 70–80% (setor: ~77–82%). A ANS NÃO fixa limite normativo (verificado 2026-08) |
+| **Tempo de Resposta a Autorização** | `auth_end_ts - auth_request_ts` | RN ANS 623/2024, art. 12 (vigor 07/2025): urgência/emergência = IMEDIATA; demais = 5 dias ÚTEIS; PAC/internação eletiva = 10 dias úteis. Prazos de ATENDIMENTO na rede são outra coisa (RN 566/2022, que substituiu a RN 259/2011) (verificado 2026-08) |
 | **Taxa de Negativa** | Pedidos negados / Total de pedidos × 100 | Monitorado pela ANS |
 | **NPS Beneficiários** | % Promotores − % Detratores | Excelente: > 40 |
 
@@ -233,6 +238,14 @@ ORDER BY compliance_status DESC;
 ```
 
 ---
+
+### Normas vigentes de dados em saúde suplementar (verificado 2026-08)
+
+- **RN ANS 501/2022** — Padrão TISS: troca eletrônica obrigatória de dados assistenciais operadora–prestador–ANS (revogou RNs 305/2012 e 341/2013)
+- **RN ANS 566/2022** — prazos máximos de ATENDIMENTO na rede (substituiu a RN 259/2011)
+- **RN ANS 623/2024** — prazos de resposta a AUTORIZAÇÕES (art. 12; vigor 07/2025; substituiu a RN 395/2016)
+- **Lei 13.787/2018** — prontuário: digitalização com integridade e guarda mínima de 20 ANOS após o último registro
+- **LGPD art. 11, §§4º e 5º** — VEDADO uso compartilhado de dado de saúde para vantagem econômica; operadoras PROIBIDAS de usar dado de saúde para seleção de risco — restrição direta a modelos de precificação/subscrição
 
 ## Anti-Padrões Específicos de Healthcare
 

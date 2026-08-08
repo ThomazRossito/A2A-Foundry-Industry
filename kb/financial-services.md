@@ -7,6 +7,11 @@ agents: [fabric-engineer, business-analyst, governance-auditor, data-quality-ste
 
 # Financial Services — Knowledge Base de Indústria
 
+> **Procedência (verificado 2026-08):** as afirmações normativas desta KB foram auditadas em
+> fonte primária — dossiê em `docs/auditoria-kb-normativa.md`. Valores rotulados "Meta" ou
+> "Benchmark" são referências de projeto/mercado, NÃO obrigações. Itens "(verificado 2026-08)"
+> têm fonte conferida; o restante não foi verificado individualmente.
+
 Referência de casos de uso, schemas típicos, KPIs e contexto regulatório para times de dados
 atuando em bancos, fintechs, seguradoras, gestoras de ativos e corretoras.
 
@@ -125,7 +130,7 @@ PARTITIONED BY (position_date);
 | **LTV** | Receita Total do Cliente / Custo de Aquisição (CAC) | Meta: LTV/CAC > 3x |
 | **Churn Rate Mensal** | Clientes Encerrados no Mês / Base Início do Mês | Alerta: > 2% |
 | **Fraud Loss Rate** | Perdas com Fraude / Volume Transacionado | Alerta: > 0.1% |
-| **Coverage Ratio (PCLD)** | Provisão Acumulada / Carteira 90+ | Mínimo regulatório: 100% |
+| **Coverage Ratio (PCLD)** | Provisão Acumulada / Carteira 90+ | Referência de mercado: ~100%. NÃO é mínimo regulatório — nenhuma norma o fixa; no COSIF (Res. BCB 352/2023) 100% aparece como TETO de provisão (verificado 2026-08) |
 | **Cost-to-Income** | Despesas Operacionais / Receita Total | Meta: < 50% |
 
 ---
@@ -167,10 +172,13 @@ HAVING ABS(reconciliation_gap) > 0.01;  -- tolerância: 1 centavo
 | Regulação | Órgão | Impacto em Dados |
 |-----------|-------|-----------------|
 | **LGPD** | ANPD | PII deve ser mascarada em ambientes não-produção, consentimento rastreável |
-| **Bacen 4.557** | BACEN | Gestão de riscos: crédito, mercado, liquidez, operacional — dados por 5 anos |
-| **IFRS 9** | IASB | Staging de contratos em 3 estágios + ECL por contrato — calcular mensalmente |
+| **Res. CMN 4.557/2017** | CMN/BACEN | Gestão integrada de riscos: crédito, mercado, liquidez, operacional, social, ambiental e climático (arts. 38-A ss.). NÃO fixa prazo de retenção de dados (verificado 2026-08) |
+| **IFRS 9** | IASB | Padrão contábil internacional; no Brasil o provisionamento por perdas esperadas segue a Res. CMN 4.966/2021 |
+| **Res. CMN 4.966/2021** | CMN | Base normativa do ECL no Brasil — em vigor desde 01/01/2025; revogou a Res. 2.682/1999 (verificado 2026-08) |
+| **Res. BCB 352/2023** | BACEN | Procedimentos contábeis da 4.966: estágios, ativo inadimplido (atraso > 90 dias), evidenciação por estágio (verificado 2026-08) |
+| **Circular BCB 3.978/2020** | BACEN | PLD/FT: guarda de documentos por 5 anos após o encerramento da relação (art. 66, §1º) (verificado 2026-08) |
 | **CVM 175** | CVM | Fundos: cota diária, carteira consolidada, stress testing trimestral |
-| **COAF** | MJ | Operações suspeitas > R$50k em espécie → comunicação automática |
+| **COAF** | vinculado ao BACEN (Lei 13.974/2020) | Dois regimes (Circ. BCB 3.978/2020): operação SUSPEITA — comunicar SEM valor mínimo (art. 48); operação EM ESPÉCIE ≥ R$ 50 mil — comunicação automática (art. 49, I) (verificado 2026-08) |
 | **Open Finance** | BACEN | APIs de compartilhamento de dados — consentimento + auditoria |
 | **PCI-DSS** | PCI SSC | Dados de cartão: tokenização obrigatória, sem PAN em logs |
 
@@ -182,7 +190,7 @@ HAVING ABS(reconciliation_gap) > 0.01;  -- tolerância: 1 centavo
 |----|-------------|-------|
 | FS01 | CPF, CNPJ ou número de conta em claro em tabela Silver/Gold | CRITICAL — violação LGPD + BACEN |
 | FS02 | Saldo calculado por agregação de transações sem reconciliação | HIGH — inconsistência financeira |
-| FS03 | Staging IFRS 9 calculado sem histórico de DPD de 12 meses | HIGH — provisão incorreta |
+| FS03 | Staging por perda esperada sem os gatilhos corretos de atraso (Res. BCB 352: > 30 dias sinaliza aumento de risco; > 90 dias = ativo inadimplido) ou com método de estimativa em uso há menos de 2 anos (COSIF) — a antiga regra "12 meses de DPD" não tem base normativa (verificado 2026-08) | HIGH — provisão incorreta |
 | FS04 | Transações duplicadas sem controle de idempotência | HIGH — double-counting de receita |
 | FS05 | Dados de mercado sem timestamp de validade (stale market data) | HIGH — VaR incorreto |
 | FS06 | Relatório regulatório gerado sem validação de totalização | CRITICAL — risco regulatório |

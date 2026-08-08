@@ -22,7 +22,9 @@ import argparse
 import sys
 from pathlib import Path
 
-MAX_INSTRUCTIONS = 4096
+# Ver a nota em provision.py: o 4096 era afirmacao minha nao verificada.
+# Teto real testado >= 65536. 32768 e conservador.
+MAX_INSTRUCTIONS = 32768
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
 
 # guardrail por sensibilidade de dado — ver docs/06-guardrails.md §2
@@ -33,7 +35,7 @@ VERTICAIS = {
     "financial-services": dict(
         guardrail=REGULADO,
         dominio="Servicos Financeiros",
-        escopo="credito (ECL/PD/LGD), AML/KYC, IFRS 9, churn, next best offer e Open Finance",
+        escopo="credito e provisao IFRS 9 (staging + ECL), AML/KYC, churn, next best offer e Open Finance",
         reguladores="BACEN, IFRS 9, LGPD, PCI-DSS, COAF",
         ambiguo=('Os termos "sinistro", "sinistralidade" e "seguradora" tambem pertencem a '
                  'healthcare e insurance; "churn" tambem a telecom; "inadimplencia" tambem a '
@@ -151,14 +153,16 @@ VERTICAIS = {
         guardrail=REGULADO,
         dominio="Educacao",
         escopo="early warning de evasao, LMS analytics, inadimplencia e NPS academico",
-        reguladores="LGPD, ECA (Art. 17 — consentimento dos responsaveis legais), INEP, MEC",
+        reguladores="LGPD (Art. 14 — dados de criancas e adolescentes), ECA (protecao integral), INEP, MEC",
         ambiguo=('"inadimplencia" tambem pertence a financial-services; "evasao" pode ser '
                  'confundida com churn de telecom ou financial-services.'),
         exemplo=('se perguntarem como separar frequencia de EAD e presencial e a busca nao trouxer '
                  'coluna de modalidade, diga que a KB nao permite essa separacao com o schema '
                  'declarado'),
-        pii=("dado de MENOR exige protecao reforcada: consentimento e dos responsaveis legais, nao "
-             "do aluno (ECA Art. 17). Se a KB nao tiver coluna registrando QUEM consentiu, aponte "
+        pii=("dado de MENOR exige protecao reforcada: consentimento parental para dados de CRIANCA "
+             "e dos responsaveis legais (LGPD Art. 14, par. 1). O ECA Art. 17 NAO trata de dados — "
+             "e o direito ao respeito; nao o cite como base de consentimento. Adolescentes tem "
+             "regime proprio (Enunciado ANPD/2023). Se a KB nao tiver coluna registrando QUEM consentiu, aponte "
              "essa lacuna. Perfilamento de risco de evasao e decisao automatizada — mencione o "
              "direito a revisao (LGPD Art. 20). Genero e dado sensivel"),
     ),
@@ -198,6 +202,11 @@ instructions: |
     EXATAMENTE. Se a busca nao trouxer o numero, diga que a KB nao o define. NUNCA estime,
     NUNCA arredonde, NUNCA complete com valor "tipico de mercado".
   - Formulas somente se vierem da busca. Exemplo concreto: {exemplo}.
+  - Formula: copie da KB PALAVRA POR PALAVRA, numerador e denominador. NUNCA troque um
+    termo por sinonimo. Erro real observado: a KB define Taxa de Evasao com denominador
+    "Matriculados inicio do periodo" e uma resposta escreveu "Ingressantes" — sao
+    populacoes diferentes, e a troca muda o KPI sem parecer que mudou. Se nao conseguir
+    copiar exato, cite a linha da KB entre aspas em vez de reescrever.
   - Nomes de tabela, coluna, caso de uso e anti-padrao somente se vierem da busca.
   - Se a busca trouxer valores contraditorios para a mesma coisa, aponte a contradicao e
     NAO escolha um lado.
