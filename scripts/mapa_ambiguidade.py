@@ -129,6 +129,14 @@ def main() -> None:
         termos_novos = [t.strip() for t in args.palavras.split(",") if t.strip()]
         if not termos_novos:
             sys.exit("--nova exige --palavras \"a,b,c\"")
+        # Validacao de entrada. Sem isto, o placeholder "..." de um exemplo colado
+        # literal foi aceito e classificado como "termo discriminante bom" —
+        # lixo entrou, veredito saiu (08/08/2026). Termo precisa ter letra.
+        invalidos = [t for t in termos_novos
+                     if len(t) < 2 or not any(c.isalpha() for c in t)]
+        if invalidos:
+            sys.exit(f"ERRO: termo(s) invalido(s) (sem letras ou curtos demais): "
+                     f"{invalidos}\nPasse palavras reais: --palavras \"obra,canteiro,...\"")
         print("\n" + "=" * 72)
         print(f"SIMULACAO: vertical nova '{args.nova}' com {len(termos_novos)} termo(s)")
         print("=" * 72)
