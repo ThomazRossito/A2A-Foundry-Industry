@@ -137,6 +137,15 @@ IGNORAR_SIGLA = {
     "KB", "PII", "KPI", "KPIS", "SQL", "DDL", "ETL", "ELT", "API", "ID", "IDS",
     "CSV", "JSON", "YAML", "OK", "NAO", "SIM", "AS", "DE", "DO", "DA", "EM", "NA",
     "NO", "OU", "SE", "UM", "UMA", "POR", "COM", "SEM", "ATE", "JA", "SO", "E",
+    # Categorias GENERICAS de tecnologia/sistema. Citar "MES" ou "SCADA" como rotulo
+    # de fonte de dados ("Dados MES: production_orders...") nao e afirmacao de dominio
+    # nem alegacao de procedencia — e vocabulario de engenharia, como "SQL". Exigir
+    # lastro na KB para isso gerou falso positivo em 08/08/2026 (manufacturing).
+    # NOTA: a instrucao dos especialistas continua mandando nao acrescentar conceito
+    # fora da busca — a divergencia e deliberada: a guarda pega PROCEDENCIA FALSA,
+    # nao estilo. Se um dia "MES" virar afirmacao factual, reavaliar.
+    "MES", "CMMS", "PLC", "SCADA", "ERP", "WMS", "TMS", "CRM", "BI", "IOT",
+    "OLAP", "OLTP",
 }
 
 # Diretorio das KBs, resolvido a partir da localizacao deste arquivo.
@@ -145,8 +154,13 @@ KB_DIR = pathlib.Path(__file__).resolve().parent.parent / "kb"
 
 # Marcas de negacao. Uma sigla ausente da KB citada DENTRO de uma negacao nao e
 # falsa procedencia — e exatamente o comportamento desejado ("a KB nao define X").
+# BUG CORRIGIDO 08/08/2026: o padrao anterior era `n[ao]o` — casa "nao" e "noo",
+# mas NAO casa "não" com til. Tres rodadas passaram por sorte (os segmentos tinham
+# "ausência" ou "Lacunas:"); na quarta, respostas honestas com "NÃO detalha PD, LGD"
+# reprovaram como falsa procedencia. Regex de linguagem natural exige teste com o
+# texto REAL acentuado, nao com a minha transcricao ASCII.
 NEGACAO = re.compile(
-    r"\b(n[ao]o|sem|ausente|ausencia|aus[eê]ncia|lacuna[s]?|inexist\w*|"
+    r"\b(n[aã]o|nem|nunca|sem|ausente|ausencia|aus[eê]ncia|lacuna[s]?|inexist\w*|"
     r"desconhec\w*|falta[m]?|carece)\b", re.I)
 
 

@@ -14,7 +14,7 @@ guardrail: gr-industry-regulado
 # Forca o uso do File Search. Alavanca documentada em /agents/how-to/tools/file-search:
 # "No citations in response ... Use tool_choice='required' to force file search."
 tool_choice: required
-vector_store_id: vs_c6eBzkhmnrhEeLVyISjy2Xqq
+vector_store_id: vs_jGiSoz3U9jpXHFUB2R75S6Gj
 knowledge_files:
   - kb/healthcare.md
 instructions: |
