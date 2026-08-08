@@ -12,7 +12,7 @@ especialistas de indústria.
 | Região | `eastus2` |
 | Modelos deployados | `claude-sonnet-5`, `claude-sonnet-5-1` |
 | Env Python | conda `ai_agents_froundry` — Python 3.13.14 ✅ |
-| Status | 🟢 **11 agentes no ar e auditados** — supervisor `:8` com 10 `A2APreviewTool`; especialistas `:3` (financial-services `:4`) com KB própria, `tool_choice: required` e identidade Entra dedicada. Suíte: 4/5 automáticos passam, 1 indeterminado por design. A garantia de delegação vive em `scripts/cliente.py` (guarda de contrato + retry), não no prompt — ver ADR-005 §D1. Pendente: guardrails, App Insights, teto real de `instructions` |
+| Status | 🟢 **11 agentes no ar, KB auditada em fonte primária (2026-08), suíte 7/7** — supervisor `:14` (roster dos 10, contrato de 5 rótulos, reasoning medium); especialistas `:5`/`:6` com KB corrigida (Res. CMN 4.966/352, RN 623, LGPD art. 14, EUDR 2026-27, RQUAL/DVR — dossiê em `docs/auditoria-kb-normativa.md`). Garantia de delegação e saneamento no `scripts/cliente.py` (caminho de produção). Pendente: guardrails (namespace da RAI policy desconhecido — teste do portal), App Insights, itens voláteis do dossiê (Moratória da Soja: STF ago/2026) |
 | Última atualização deste doc | 2026-08-07 |
 
 ---
