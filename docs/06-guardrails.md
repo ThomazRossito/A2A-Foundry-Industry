@@ -6,6 +6,37 @@
 
 ---
 
+> ## Como o guardrail é aplicado — e como conferir sem acreditar em mim
+>
+> **Histórico de correção:** este bloco já teve duas versões erradas. A primeira dizia
+> que atribuição a agente era só por portal. A segunda dizia o mesmo com mais convicção.
+> As duas vieram de introspecção que falhou em silêncio. O que segue tem o nível de
+> evidência marcado em cada linha.
+>
+> | # | Afirmação | Evidência |
+> |---|---|---|
+> | A1 | `PromptAgentDefinition` aceita `rai_config` e ele **vai no payload** | ✅ **provado por execução** — `scripts/testar_rai_config.py` constrói e serializa: `"rai_config": {"rai_policy_name": "gr-industry-regulado"}` |
+> | A2 | `rai_config` **não** é campo de `PromptAgentDefinition` — vem de `AgentDefinition` (base) | ✅ **provado** — MRO impresso pelo mesmo script |
+> | A3 | `hasattr(PromptAgentDefinition, "rai_config")` devolve **`False`** mesmo assim | ✅ **provado** — e é a razão de duas introspecções minhas terem errado. Neste SDK, checar atributo mente; construir e olhar o wire, não |
+> | A4 | `provision.py` agora envia o guardrail | ✅ **verificado no código** — `extras["rai_config"] = RaiConfig(...)`. Mas veja A5 antes de considerar aplicado |
+> | A5 | O guardrail ficou de fato aplicado no agente | ⚠️ **só a saída do provisionamento diz** — `provision.py` relê a definição na resposta do serviço e imprime `CONFIRMADO ... rai_config={...}` ou `ALERTA: rai_config NAO veio na resposta`. **Leia a saída, não o YAML** |
+> | A6 | "Guardrail" do portal == "RAI policy" do wire | 🟠 **não provado** — a doc de deployment usa `raiPolicyName` para atribuir guardrail, o que sugere equivalência. Sugerir não é verificar. Confirme abrindo `Build > Agents > <agente> > Guardrails` depois de provisionar |
+> | A7 | A política precisa existir antes | 🟠 **não provado** — `rai_policy_name` é `Required` dentro de `RaiConfig`, então o serviço provavelmente valida. **Crie os dois guardrails no portal antes de provisionar.** Se der erro, use `--sem-guardrail` para destravar |
+> | A8 | Para agente só existe `Annotate and block` | 🟡 **leitura indireta** — tabela "Action applicability" de [guardrails-overview](https://learn.microsoft.com/en-us/azure/foundry/guardrails/guardrails-overview), lida por resumo automático, não pelos meus olhos |
+> | A9 | Guardrail em agente é preview | 🟠 **interpretação** do rótulo de coluna "Applicable to Agents (Preview)", não citação |
+>
+> ### Ordem obrigatória
+>
+> 1. Criar `gr-industry-regulado` e `gr-industry-padrao` **no portal** (`Build > Guardrails`)
+> 2. `python scripts/provision.py --all`
+> 3. Ler a saída: `CONFIRMADO` em 11 agentes, ou investigar cada `ALERTA`
+> 4. Abrir 2 ou 3 agentes no portal e conferir com o olho — fecha A6
+>
+> Se a etapa 1 não estiver feita, a 2 provavelmente falha. `--sem-guardrail` provisiona
+> sem o campo, para não travar o resto.
+
+
+
 ## 1. Quando são configurados
 
 | Momento | O que acontece | Por que não antes |
@@ -84,6 +115,23 @@ the orchestration, including user input, tool calls, tool responses, and final o
 Para agentes existe **apenas `Annotate and block`**. `Annotate` isolado é só para modelos — não
 há modo "observar sem bloquear" em agente. Consequência prática: **não existe fase de shadow
 mode**. O guardrail entra bloqueando desde o primeiro dia, então valide em dev antes.
+
+**Re-verificado em 08/08/2026** na tabela "Action applicability" de
+[guardrails-overview](https://learn.microsoft.com/en-us/azure/foundry/guardrails/guardrails-overview):
+
+| Ação | Modelos | Agentes |
+|---|---|---|
+| `Annotate` | ✅ | ❌ |
+| `Annotate and block` | ✅ | ✅ |
+
+⚠️ Na mesma tabela, a coluna de agentes vem rotulada **"Applicable to Agents (Preview)"** —
+ou seja, guardrail **em agente** é preview como um todo, não só os controles individuais.
+Isso soma ao risco de preview já aceito para A2A. Não é motivo para não configurar; é
+motivo para não prometer SLA de bloqueio.
+
+Também confirmado como preview e **aplicável a agente**: `Personally identifiable
+information`, `Task Adherence`, `Tool call`, `Tool response`. E **não** aplicável a agente:
+`Spotlighting`, `Groundedness`.
 
 A anotação de PII inclui o campo `redacted (true or false)`.
 

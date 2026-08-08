@@ -971,6 +971,68 @@ maior que 4096, isso entra junto.
 
 ---
 
+## Guardrail em agente — o que ficou provado e o que ficou aberto (08/08/2026)
+
+Quatro hipóteses testadas, três derrubadas por execução. Registro para a próxima pessoa
+não repetir.
+
+### ✅ PROVADO
+
+| # | Fato | Como |
+|---|---|---|
+| G1 | `PromptAgentDefinition` **aceita** `rai_config` e ele vai no wire como `{"rai_config":{"rai_policy_name":"..."}}` | `scripts/testar_rai_config.py` — constrói e serializa |
+| G2 | `rai_config` vem de `AgentDefinition` (classe **base**), não de `PromptAgentDefinition` | MRO impresso pelo mesmo script |
+| G3 | `hasattr(PromptAgentDefinition, "rai_config")` devolve **`False`** mesmo assim | idem. Neste SDK, introspecção por atributo **mente** |
+| G4 | O serviço **lê e valida** `rai_policy_name` | erro `bad_request: The specified RAI policy name '...' is invalid or does not exist` — o campo chegou e foi processado |
+| G5 | O namespace validado **não é** `raiPolicies` da conta | `Microsoft.DefaultV2` (SystemManaged, listado na conta) foi **rejeitado** com o mesmo erro |
+| G6 | Não é propagação | reprovisionamento minutos depois: mesmo erro. Diferente do caso das connections A2A, que 90s resolveu |
+| G7 | Não é `basePolicyName` errado | a rejeição de `Microsoft.DefaultV2` é independente de como criamos as nossas |
+
+### ❌ HIPÓTESES DERRUBADAS (minhas, em ordem)
+
+1. *"Atribuição a agente é só por portal"* — derrubada por G1. Existe campo no SDK.
+2. *"Então `rai_config` resolve o problema"* — derrubada por G4/G5. É aceito, mas não
+   resolve contra nenhum namespace que eu tenha achado.
+3. *"Criar a política via ARM (`raiPolicies` da conta) destrava"* — derrubada por G5. Criei
+   `gr-industry-regulado` e `gr-industry-padrao` como `UserManaged`; o agente segue
+   dizendo que não existem. **As duas são resíduo e devem ser apagadas.**
+4. *"É a base `Microsoft.Default` vs `DefaultV2`"* — derrubada por G7.
+
+### 🔴 ABERTO — e é bloqueante para governança
+
+**Onde vive o namespace que o agente resolve?** Candidatos não testados: escopo de
+projeto (`.../accounts/{c}/projects/{p}/raiPolicies`), ou um tipo de recurso diferente —
+o portal tem **dois** lugares distintos: `Build > Guardrails` e `Operate > Compliance >
+Create policy`. `scripts/probe_rai_scope.sh` consulta os escopos; a resposta definitiva é
+capturar no DevTools o `PUT`/`POST` que o portal emite ao criar e ao atribuir.
+
+### 🔴 ARMADILHA A TESTAR ANTES DE ATRIBUIR OS 11 NO PORTAL
+
+`rai_config` mora na **definição da versão**. Cada `create_version` grava uma definição
+nova. Se a atribuição feita no portal também morar na versão, então
+`provision.py --all --sem-guardrail` **apaga a atribuição silenciosamente** no próximo
+deploy — governança que some sem erro, sem log, sem ninguém notar.
+
+Teste mínimo, um agente:
+
+1. Portal: atribuir guardrail a `industry-agribusiness`
+2. `python scripts/provision.py --agent industry-agribusiness --sem-guardrail`
+3. Portal: conferir se continua atribuído
+
+- **Sumiu** → atribuição manual é incompatível com reprovisionamento. Bloqueante de
+  verdade; sem alternativa a não ser descobrir a API real.
+- **Continuou** → a atribuição é do agente, não da versão. As 11 atribuições manuais
+  resolvem e o assunto fecha.
+
+### Lição de método
+
+O teste que separou tudo foi `--guardrail Microsoft.DefaultV2`: usar um valor **que
+sabidamente existe** em vez de criar um valor novo e torcer. Custou um comando e derrubou
+duas hipóteses. Devia ter sido o primeiro teste, não o quarto — criar recurso para testar
+hipótese é caro e deixa resíduo na subscription.
+
+---
+
 ## Pendências
 
 - [x] `audience` = `https://ai.azure.com` e `authType` = `AgenticIdentityToken` — confirmados em execução

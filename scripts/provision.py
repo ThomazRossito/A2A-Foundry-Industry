@@ -30,13 +30,17 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import yaml
 from azure.ai.projects import AIProjectClient
-from azure.ai.projects.models import A2APreviewTool, FileSearchTool, PromptAgentDefinition
+from azure.ai.projects.models import (A2APreviewTool, FileSearchTool,
+                                      PromptAgentDefinition, RaiConfig)
 from azure.identity import DefaultAzureCredential
 
 # Limite documentado de `instructions` na referencia REST de prompt agent.
@@ -75,6 +79,7 @@ def validar(nome: str, spec: dict) -> str:
             f"L1-L4 e contrato de saida."
         )
     print(f"   instructions: {tamanho}/{MAX_INSTRUCTIONS} chars")
+
     return instrucoes
 
 
@@ -151,14 +156,94 @@ def montar_tools(spec: dict, project: AIProjectClient, dry_run: bool) -> list:
     return tools
 
 
-def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool) -> None:
+def politicas_rai_existentes() -> set[str] | None:
+    """Nomes das RAI policies da conta, ou None se nao der para checar.
+
+    POR QUE ISSO EXISTE
+    -------------------
+    Em 08/08/2026 `--all` morreu no PRIMEIRO agente com
+      bad_request: The specified RAI policy name 'gr-industry-padrao' is invalid
+                   or does not exist.
+    Deu certo por sorte. Se a politica faltante fosse a 'regulado', os 6 agentes
+    'padrao' teriam subido versao nova e os 5 'regulado' nao — metade da frota numa
+    versao, metade em outra, sem ninguem perceber ate o proximo teste.
+
+    Entao a checagem acontece ANTES de tocar em qualquer agente. Falhar cedo e inteiro
+    e melhor que falhar tarde e pela metade.
+
+    Fonte da API (consultada em 08/08/2026):
+      https://learn.microsoft.com/en-us/rest/api/aiservices/accountmanagement/rai-policies
+    """
+    sub = os.environ.get("SUBSCRIPTION_ID")
+    rg = os.environ.get("RESOURCE_GROUP")
+    conta = os.environ.get("FOUNDRY_ACCOUNT")
+    if not (sub and rg and conta):
+        return None
+    url = (f"https://management.azure.com/subscriptions/{sub}/resourceGroups/{rg}"
+           f"/providers/Microsoft.CognitiveServices/accounts/{conta}"
+           f"/raiPolicies?api-version=2024-10-01")
+    try:
+        token = DefaultAzureCredential().get_token(
+            "https://management.azure.com/.default").token
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=30) as resposta:
+            dados = json.load(resposta)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(f"AVISO: nao consegui listar as RAI policies ({type(exc).__name__}: {exc}).")
+        print("       Seguindo sem a pre-checagem — um erro tardio pode deixar a frota")
+        print("       em versoes diferentes. Confira o resultado agente por agente.")
+        return None
+    return {pol.get("name") for pol in dados.get("value", []) if pol.get("name")}
+
+
+def checar_guardrails(nomes: list[str]) -> None:
+    """Aborta ANTES de provisionar se alguma politica declarada nao existir."""
+    exigidas = set()
+    for nome in nomes:
+        gr = carregar_definicao(nome).get("guardrail")
+        if gr:
+            exigidas.add(gr)
+    if not exigidas:
+        return
+
+    existentes = politicas_rai_existentes()
+    if existentes is None:
+        print(f"AVISO: pre-checagem de guardrail PULADA (exporte SUBSCRIPTION_ID, "
+              f"RESOURCE_GROUP e FOUNDRY_ACCOUNT para habilitar).")
+        print(f"       Politicas exigidas pelos YAMLs: {sorted(exigidas)}")
+        return
+
+    faltando = sorted(exigidas - existentes)
+    if faltando:
+        sys.exit(
+            f"ERRO: politica(s) RAI inexistente(s): {faltando}\n"
+            f"      Existem na conta: {sorted(existentes) or '(nenhuma)'}\n"
+            f"\n"
+            f"      NADA foi provisionado — abortei antes para nao deixar parte da\n"
+            f"      frota numa versao e parte em outra.\n"
+            f"\n"
+            f"      Crie as politicas:  ./scripts/criar_guardrails.sh\n"
+            f"      Ou provisione sem:  python scripts/provision.py --all --sem-guardrail"
+        )
+    print(f"pre-checagem: politica(s) {sorted(exigidas)} existem na conta.")
+
+
+def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool,
+                sem_guardrail: bool = False,
+                guardrail_override: str | None = None) -> None:
     print(f"\n>> {nome}")
     spec = carregar_definicao(nome)
+    if guardrail_override:
+        print(f"   guardrail sobrescrito: {spec.get('guardrail')!r} -> {guardrail_override!r}")
+        spec["guardrail"] = guardrail_override
     instrucoes = validar(nome, spec)
     tools = montar_tools(spec, project, dry_run)
 
     if dry_run:
-        print(f"   [dry-run] model={spec['model']}, tools={len(tools)}")
+        gr = spec.get("guardrail")
+        gr_txt = (f", rai_policy_name={gr!r}" if gr and not sem_guardrail
+                  else ", sem rai_config" if gr else "")
+        print(f"   [dry-run] model={spec['model']}, tools={len(tools)}{gr_txt}")
         return
 
     extras = {}
@@ -171,6 +256,21 @@ def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool) -> No
     if spec.get("tool_choice"):
         extras["tool_choice"] = spec["tool_choice"]
         print(f"   tool_choice={spec['tool_choice']!r}")
+
+    # Guardrail via `rai_config`. PROVADO em 08/08/2026 por construcao + serializacao
+    # (scripts/testar_rai_config.py): o payload sai como
+    #   "rai_config": {"rai_policy_name": "<nome>"}
+    # `rai_config` NAO esta em PromptAgentDefinition — vem herdado de AgentDefinition.
+    # Cuidado: hasattr(PromptAgentDefinition, "rai_config") devolve False mesmo assim.
+    # Introspecao por atributo mente aqui; so construir e olhar o wire resolve.
+    #
+    # A politica precisa EXISTIR antes (crie os guardrails no portal). Se nao existir,
+    # espere erro do servico — use --sem-guardrail para provisionar sem ela.
+    if spec.get("guardrail") and not sem_guardrail:
+        extras["rai_config"] = RaiConfig(rai_policy_name=spec["guardrail"])
+        print(f"   rai_config <- rai_policy_name={spec['guardrail']!r}")
+    elif spec.get("guardrail"):
+        print(f"   guardrail {spec['guardrail']!r} IGNORADO (--sem-guardrail)")
 
     definicao = PromptAgentDefinition(
         model=spec["model"],
@@ -185,6 +285,23 @@ def provisionar(nome: str, project: AIProjectClient | None, dry_run: bool) -> No
     )
     print(f"   OK  id={agente.id}  version={agente.version}")
 
+    # NAO afirmar "aplicado" — LER DE VOLTA. Foi exatamente por afirmar estado sem
+    # verificar que a versao anterior deste projeto documentou governanca que nao
+    # existia. A resposta do create_version ja traz a definicao gravada.
+    if spec.get("guardrail") and not sem_guardrail:
+        gravado = None
+        try:
+            definicao_gravada = agente.definition
+            gravado = (definicao_gravada or {}).get("rai_config")
+        except Exception as exc:
+            print(f"   ALERTA: nao consegui reler a definicao ({type(exc).__name__}).")
+        if gravado:
+            print(f"   CONFIRMADO na resposta do servico: rai_config={dict(gravado)}")
+        else:
+            print(f"   ALERTA: rai_config NAO veio na resposta. O campo pode ter sido")
+            print(f"           aceito e descartado em silencio. Confira no portal:")
+            print(f"           Build > Agents > {nome} > Guardrails.")
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Provisiona agentes do ai-agents-foundry")
@@ -192,6 +309,11 @@ def main() -> None:
     grupo.add_argument("--agent", help="nome do agente (= nome do arquivo em agents/)")
     grupo.add_argument("--all", action="store_true", help="todos os agents/*.yaml")
     ap.add_argument("--dry-run", action="store_true", help="valida sem chamar a API")
+    ap.add_argument("--sem-guardrail", action="store_true",
+                    help="nao envia rai_config (use se as politicas ainda nao existem)")
+    ap.add_argument("--guardrail", metavar="NOME",
+                    help="sobrescreve o guardrail do YAML. Use para testar um nome\n"
+                         "que sabidamente existe, ex.: --guardrail Microsoft.DefaultV2")
     args = ap.parse_args()
 
     endpoint = os.environ.get("PROJECT_ENDPOINT")
@@ -214,8 +336,11 @@ def main() -> None:
     else:
         nomes = [args.agent]
 
+    if not args.dry_run and not args.sem_guardrail and not args.guardrail:
+        checar_guardrails(nomes)
+
     for nome in nomes:
-        provisionar(nome, project, args.dry_run)
+        provisionar(nome, project, args.dry_run, args.sem_guardrail, args.guardrail)
 
     print(f"\n{len(nomes)} agente(s) processado(s).")
 

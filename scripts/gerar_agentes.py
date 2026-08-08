@@ -171,6 +171,11 @@ TEMPLATE = """# Agente especialista — {dominio}
 model: gpt-5-mini
 description: >-
   Especialista em dados e analytics de {dominio}: {escopo}.
+# provision.py APLICA este campo como rai_config.rai_policy_name (provado em
+# 08/08/2026 por scripts/testar_rai_config.py). A politica precisa EXISTIR no
+# projeto antes do provisionamento. provision.py rele a resposta do servico e
+# imprime CONFIRMADO ou ALERTA — nao acredite no YAML, leia a saida.
+# Ver docs/06-guardrails.md.
 guardrail: {guardrail}
 # Forca o uso do File Search. Alavanca documentada em /agents/how-to/tools/file-search:
 # "No citations in response ... Use tool_choice='required' to force file search."

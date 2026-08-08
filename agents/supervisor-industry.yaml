@@ -5,6 +5,8 @@ model: gpt-5-mini
 description: >-
   Supervisor de Industria: identifica a vertical da pergunta e delega ao agente
   especialista correspondente via A2A, sintetizando a resposta.
+# provision.py APLICA este campo como rai_config.rai_policy_name. A politica
+# precisa EXISTIR no projeto antes. Ver docs/06-guardrails.md.
 guardrail: gr-industry-regulado
 # Uma connection por especialista. Crie ANTES com create_a2a_connection.sh.
 # Fase 2 concluida: as 10 estao ligadas.
