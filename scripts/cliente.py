@@ -150,6 +150,8 @@ IGNORAR_SIGLA = {
 
 # Diretorio das KBs, resolvido a partir da localizacao deste arquivo.
 KB_DIR = pathlib.Path(__file__).resolve().parent.parent / "kb"
+SUPERVISOR_YAML = (pathlib.Path(__file__).resolve().parent.parent
+                   / "agents" / "supervisor-industry.yaml")
 
 
 # Marcas de negacao. Uma sigla ausente da KB citada DENTRO de uma negacao nao e
@@ -251,6 +253,25 @@ def verificar_contrato(texto: str, trilha: str, estrito: bool = False) -> tuple:
             if len(citados) < 8:
                 falhas.append(f"capacidades citou so {len(citados)}/10 especialistas: "
                               f"{citados}")
+            # LACUNA FECHADA 11/08/2026: capacidades nao tem KB para conferir sigla,
+            # entao esta checagem nao existia — e "CPMN" (corrupcao de CMN) chegou a um
+            # usuario pelo portal. A fonte de verdade aqui e o proprio texto do
+            # supervisor (roster): sigla afirmada que nao existe nele e corrupcao.
+            # AVISO (nao rejeicao): a resposta pode ecoar sigla da PERGUNTA do usuario
+            # legitimamente — rejeitar automatico daria falso positivo.
+            sup = SUPERVISOR_YAML.read_text(encoding="utf-8", errors="replace")
+            vocab_sup = set(re.findall(r"[A-Z][A-Z0-9]{1,7}", sup.upper()))
+            suspeitas = set()
+            for seg in re.split(r"(?<=[.;])\s+|\n", texto):
+                if not seg.strip() or NEGACAO.search(seg):
+                    continue
+                for m in re.finditer(r"\b[A-Z][A-Z0-9]{1,7}\b", seg):
+                    x = m.group(0)
+                    if x not in IGNORAR_SIGLA and x not in vocab_sup:
+                        suspeitas.add(x)
+            if suspeitas:
+                avisos.append(f"capacidades com sigla(s) fora do roster do supervisor: "
+                              f"{sorted(suspeitas)} — possivel corrupcao (ex. real: CPMN)")
         return falhas, avisos
 
     if rotulo not in VERTICAIS:

@@ -1033,6 +1033,26 @@ hipótese é caro e deixa resíduo na subscription.
 
 ---
 
+## Publicação no Teams/M365 Copilot — notas de 11/08/2026
+
+1. **Limite REAL de 4.000 chars na Description do manifesto Teams** (`UserError:
+   Description cannot exceed length of 4000`, componentName `agent-asset`). O fluxo de
+   publish do portal PRE-PREENCHE a Description com as *instructions* do agente
+   (~11k chars no supervisor) — trocar por descrição de usuário final antes do Next.
+   Nota: este limite é do manifesto Teams; o teto de instructions do agente segue
+   >= 65536 (testado). Não confundir os dois.
+2. **Não expor instructions em campo público** — o contrato de rótulos e as regras
+   S1–S4 são superfície de prompt engineering malicioso.
+3. **Teams contorna o cliente.py**: sem guarda de contrato, sem retry de transientes
+   A2A, sem saneamento de marcador de citação, e guardrails ainda não aplicados.
+   Publicar para piloto restrito primeiro.
+4. **RBAC pós-publish a re-testar**: doc afirma que roles da identidade compartilhada
+   não migram para a identidade dedicada do publish. Teste: pergunta que exige
+   delegação via Teams; erro de autorização => re-executar grant_consumer.sh para o
+   principal novo. (Não verificado ainda.)
+
+---
+
 ## Pendências
 
 - [x] `audience` = `https://ai.azure.com` e `authType` = `AgenticIdentityToken` — confirmados em execução
