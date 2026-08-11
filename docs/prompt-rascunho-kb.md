@@ -12,15 +12,24 @@ Você é especialista em dados/analytics e auditor de conformidade do setor de
 ## TAREFA
 Produza DOIS artefatos para a vertical `<VERTICAL>` de um sistema multi-agente:
 
-**Artefato 1 — rascunho de `kb/<VERTICAL>.md`** com exatamente esta anatomia
-(siga o padrão das KBs existentes do projeto):
-- front-matter YAML (nome, descrição, agentes relacionados)
-- Casos de uso analíticos (tabela: caso, descrição, domínios de dados)
-- Schemas de referência em DDL (`CREATE TABLE` bronze/silver/gold), com colunas PII
-  marcadas em comentário
-- KPIs (tabela: KPI, fórmula, threshold) — REGRAS DE ROTULAGEM abaixo
-- Conformidade e Privacidade, com subseção "Normas vigentes (verificado <ANO-MES>)"
-- Anti-padrões `XX01`–`XX06` (tabela: id, descrição, severidade — impacto)
+**Artefato 1 — rascunho de `kb/<VERTICAL>.md`** com EXATAMENTE a anatomia das KBs
+existentes — copie estes títulos literalmente (aprendido no teste com construction:
+descrição vaga aqui gerou front-matter e seções fora do padrão, que exigem retrabalho
+na Fase B e quebram os sinais do verificar_vertical.py):
+- front-matter YAML com os campos: `domain: industry`, `industry: <VERTICAL>`,
+  `updated_at: <data>`, `agents: [fabric-engineer, business-analyst, data-quality-steward]`
+  — NADA além disso; colisões de roteamento NÃO vão no front-matter (vão para o campo
+  `ambiguo` do gerar_agentes.py, na Fase B)
+- `# <Domínio> — Knowledge Base de Indústria` + descrição de 2 linhas
+- `## Casos de Uso de Dados por Objetivo`, com subseções `###` por área
+  (tabela: | Caso de Uso | Descrição | Domínios de Dados |)
+- `## Schemas Típicos (Reference Architecture)` — `CREATE TABLE` bronze/silver/gold,
+  PII marcada em comentário
+- `## KPIs de Referência` — tabela `| **NomeDoKPI** | fórmula por extenso | threshold
+  rotulado |` (nome do KPI em **negrito** — o verificador procura `| **`)
+- `## Conformidade e Privacidade` + subseção `### Normas vigentes (verificado <ANO-MES>)`
+- `## Anti-Padrões Específicos de <Domínio>` — tabela | ID | Anti-padrão | Severidade —
+  impacto |, IDs `XX01`–`XX06` com prefixo de 2 letras da vertical
 
 **Artefato 2 — anexo de fontes** (estilo dossiê): para CADA afirmação normativa do
 rascunho, uma linha:
@@ -49,7 +58,7 @@ de autoridade da base anterior não se sustentavam)
   <COLAR AQUI>
 - Temas mínimos a cobrir: <LISTA — ex. para construção civil: segurança do trabalho
   (NRs), responsabilidade técnica (ART/RRT), normas de desempenho, dados de
-  trabalhador (eSocal/LGPD), medição e orçamento de obra — VERIFICAR TUDO em fonte
+  trabalhador (eSocial/LGPD), medição e orçamento de obra — VERIFICAR TUDO em fonte
   primária; esta lista é sugestão de pauta, não afirmação>
 
 ## FORMATO DA RESPOSTA
